@@ -76,6 +76,10 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-variant-resolver.php';
         require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-engine-orchestrator.php';
 
+        // Load Cache & REST API
+        require_once TVAK_PLUGIN_DIR . 'includes/class-tvak-cache.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/api/class-tvak-rest-api.php';
+
         if (is_admin()) {
             require_once TVAK_PLUGIN_DIR . 'includes/admin/class-tvak-admin.php';
         }
@@ -86,6 +90,7 @@ final class Tvak_Beauty_Kit {
      */
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'on_plugins_loaded']);
+        add_action('rest_api_init', ['Tvak_REST_API', 'register_routes']);
 
         if (is_admin()) {
             Tvak_Admin::init();

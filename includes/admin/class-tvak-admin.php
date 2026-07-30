@@ -217,6 +217,7 @@ class Tvak_Admin {
 
         if ($product_id && $slot_id) {
             Tvak_Product_Rule::save_rule($product_id, $slot_id, $priority_boost, $is_active, $attribute_rules);
+            Tvak_Cache::invalidate_rules_cache();
         }
 
         wp_redirect(admin_url('admin.php?page=tvak-engine&product_id=' . $product_id . '&message=saved'));
