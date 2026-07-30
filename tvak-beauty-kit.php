@@ -68,6 +68,14 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-rule.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
 
+        // Load Engine Classes
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-user-profile.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/evaluators/interface-tvak-evaluator.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/evaluators/class-tvak-product-evaluator.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-anti-collision.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-variant-resolver.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-engine-orchestrator.php';
+
         if (is_admin()) {
             require_once TVAK_PLUGIN_DIR . 'includes/admin/class-tvak-admin.php';
         }
