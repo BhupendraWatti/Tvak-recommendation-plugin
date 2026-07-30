@@ -1,11 +1,12 @@
 /**
  * TVAK Beauty Kit Builder - Interactive Application Engine
  *
- * Manages reactive multi-step quiz state, recommendation REST API requests,
- * dynamic shade customization, and 1-click WooCommerce cart injection.
+ * Manages reactive multi-step quiz state dynamically fetched from REST API,
+ * recommendation engine evaluation requests, dynamic shade customization,
+ * and 1-click WooCommerce cart injection.
  *
  * @package TVAK_Beauty_Kit
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 (function($) {
@@ -14,20 +15,9 @@
   var TvakApp = {
     currentStep: 1,
     totalSteps: 3,
-    profile: {
-      skin_type: 'normal',
-      skin_tone: 'fair_light',
-      skin_concern: []
-    },
+    quizConfig: null,
+    profile: {},
     recommendationPayload: null,
-
-    swatchColors: {
-      'fair_light': '#F6E5D7',
-      'light_medium': '#E8CEB8',
-      'medium_deep': '#C9A382',
-      'deep_rich': '#8D5B3A',
-      'very_deep': '#4F301F'
-    },
 
     init: function() {
       var self = this;
@@ -37,14 +27,124 @@
         return;
       }
 
-      self.renderLayout();
+      self.renderLoadingState();
+      self.fetchQuizConfig();
       self.bindEvents();
+    },
+
+    renderLoadingState: function() {
+      var self = this;
+      self.$container.html(`
+        <div class="tvak-consultation-loading" style="padding:60px 20px; text-align:center;">
+          <div class="tvak-luxury-spinner"></div>
+          <h3 class="tvak-step-heading">Initializing Digital Consultation Engine...</h3>
+          <p style="color:#A0A0A8;">Loading active dermatological master data and quiz configuration</p>
+        </div>
+      `);
+    },
+
+    fetchQuizConfig: function() {
+      var self = this;
+      var configUrl = (tvak_vars && tvak_vars.api_url) 
+        ? tvak_vars.api_url.replace('/recommend', '/quiz-config')
+        : '/wp-json/tvak/v1/quiz-config';
+
+      $.ajax({
+        url: configUrl,
+        type: 'GET',
+        success: function(res) {
+          if (res && res.success && res.quiz_config && res.quiz_config.steps.length > 0) {
+            self.quizConfig = res.quiz_config;
+            self.totalSteps = res.quiz_config.total_steps;
+
+            // Initialize default profile state from master attributes
+            res.quiz_config.steps.forEach(function(s) {
+              if (s.input_type === 'multi_select') {
+                self.profile[s.attribute_code] = [];
+              } else {
+                self.profile[s.attribute_code] = (s.terms.length > 0) ? s.terms[0].term_slug : '';
+              }
+            });
+
+            self.renderLayout();
+          } else {
+            self.fallbackInit();
+          }
+        },
+        error: function(err) {
+          console.warn('REST quiz-config fetch error, running fallback init:', err);
+          self.fallbackInit();
+        }
+      });
+    },
+
+    fallbackInit: function() {
+      var self = this;
+      // Legacy fallback default quiz configuration
+      self.quizConfig = {
+        total_steps: 3,
+        steps: [
+          {
+            step: 1,
+            attribute_code: 'skin_type',
+            heading: 'Step 1: What is your primary Skin Type?',
+            subheading: 'Select your primary skin type',
+            input_type: 'single_select',
+            terms: [
+              { term_slug: 'dry', label: 'Dry', description: 'Tightness, flaking or dullness' },
+              { term_slug: 'oily', label: 'Oily', description: 'Excess shine & enlarged pores' },
+              { term_slug: 'normal', label: 'Normal', description: 'Well-balanced hydration' },
+              { term_slug: 'combination', label: 'Combination', description: 'Oily T-zone, normal/dry cheeks' },
+              { term_slug: 'sensitive', label: 'Sensitive', description: 'Easily irritated or red' }
+            ]
+          },
+          {
+            step: 2,
+            attribute_code: 'skin_tone',
+            heading: 'Step 2: Select your Skin Tone Group',
+            subheading: 'Select your skin tone group',
+            input_type: 'single_select',
+            terms: [
+              { term_slug: 'fair_light', label: 'Fair / Light', swatch_color: '#F6E5D7' },
+              { term_slug: 'light_medium', label: 'Light – Medium', swatch_color: '#E8CEB8' },
+              { term_slug: 'medium_deep', label: 'Medium – Deep', swatch_color: '#C9A382' },
+              { term_slug: 'deep_rich', label: 'Deep & Rich', swatch_color: '#8D5B3A' },
+              { term_slug: 'very_deep', label: 'Very Deep', swatch_color: '#4F301F' }
+            ]
+          },
+          {
+            step: 3,
+            attribute_code: 'skin_concern',
+            heading: 'Step 3: What are your target Skin Concerns?',
+            subheading: 'Select all that apply',
+            input_type: 'multi_select',
+            terms: [
+              { term_slug: 'acne', label: 'Acne & Breakouts' },
+              { term_slug: 'dry_dehydrated', label: 'Dry & Dehydrated' },
+              { term_slug: 'oily_enlarged_pores', label: 'Oily & Enlarged Pores' },
+              { term_slug: 'sensitive', label: 'Sensitivity & Redness' },
+              { term_slug: 'hyperpigmentation', label: 'Hyperpigmentation & Dark Spots' },
+              { term_slug: 'uneven_texture', label: 'Uneven Texture' },
+              { term_slug: 'fine_lines_wrinkles', label: 'Fine Lines & Wrinkles' }
+            ]
+          }
+        ]
+      };
+
+      self.totalSteps = 3;
+      self.profile = { skin_type: 'normal', skin_tone: 'fair_light', skin_concern: [] };
+      self.renderLayout();
     },
 
     renderLayout: function() {
       var self = this;
       var title = self.$container.data('title') || 'Build Your Personalized Beauty Kit';
       var subtitle = self.$container.data('subtitle') || 'Experience a bespoke digital skin consultation tailored to your unique skin profile.';
+
+      var progressHtml = '';
+      for (var i = 1; i <= self.totalSteps; i++) {
+        progressHtml += `<div class="tvak-progress-step step-${i}"></div>`;
+      }
 
       var html = `
         <div class="tvak-header">
@@ -54,9 +154,7 @@
         </div>
 
         <div class="tvak-progress-bar">
-          <div class="tvak-progress-step step-1 active"></div>
-          <div class="tvak-progress-step step-2"></div>
-          <div class="tvak-progress-step step-3"></div>
+          ${progressHtml}
         </div>
 
         <div class="tvak-step-content-area"></div>
@@ -70,9 +168,9 @@
       var self = this;
       self.currentStep = step;
 
-      // Update progress bar
+      // Update progress bar indicator
       self.$container.find('.tvak-progress-step').removeClass('active completed');
-      for (var i = 1; i <= step; i++) {
+      for (var i = 1; i <= self.totalSteps; i++) {
         if (i < step) {
           self.$container.find('.step-' + i).addClass('completed');
         } else if (i === step) {
@@ -81,106 +179,76 @@
       }
 
       var $area = self.$container.find('.tvak-step-content-area');
-      var html = '';
+      var stepDef = self.quizConfig.steps[step - 1];
 
+      if (!stepDef) {
+        return;
+      }
+
+      var attrCode = stepDef.attribute_code;
+      var inputType = stepDef.input_type;
+      var terms = stepDef.terms || [];
+
+      var gridHtml = '';
+      terms.forEach(function(term) {
+        var slug = term.term_slug;
+        var isSelected = false;
+
+        if (inputType === 'multi_select') {
+          isSelected = Array.isArray(self.profile[attrCode]) && self.profile[attrCode].indexOf(slug) !== -1;
+        } else {
+          isSelected = self.profile[attrCode] === slug;
+        }
+
+        var selectedClass = isSelected ? 'selected' : '';
+        var swatchHtml = term.swatch_color ? `<div class="tvak-swatch" style="background:${term.swatch_color};"></div>` : '';
+        var descHtml = term.description ? `<div style="font-size:12px; color:#A0A0A8; margin-top:4px;">${term.description}</div>` : '';
+        var cardTypeClass = inputType === 'multi_select' ? 'tvak-multi-card' : '';
+
+        gridHtml += `
+          <div class="tvak-option-card ${cardTypeClass} ${selectedClass}" data-attr="${attrCode}" data-val="${slug}" data-type="${inputType}">
+            ${swatchHtml}
+            <div class="tvak-label">${term.label}</div>
+            ${descHtml}
+          </div>
+        `;
+      });
+
+      var actionBtnsHtml = '';
       if (step === 1) {
-        html = `
-          <div class="tvak-step-card">
-            <h3 class="tvak-step-heading">Step 1: What is your primary Skin Type?</h3>
-            <div class="tvak-option-grid">
-              <div class="tvak-option-card ${self.profile.skin_type === 'dry' ? 'selected' : ''}" data-val="dry">
-                <div class="tvak-label">Dry</div>
-                <div style="font-size:12px; color:#A0A0A8;">Tightness, flaking or dullness</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_type === 'oily' ? 'selected' : ''}" data-val="oily">
-                <div class="tvak-label">Oily</div>
-                <div style="font-size:12px; color:#A0A0A8;">Excess shine & enlarged pores</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_type === 'normal' ? 'selected' : ''}" data-val="normal">
-                <div class="tvak-label">Normal</div>
-                <div style="font-size:12px; color:#A0A0A8;">Well-balanced hydration</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_type === 'combination' ? 'selected' : ''}" data-val="combination">
-                <div class="tvak-label">Combination</div>
-                <div style="font-size:12px; color:#A0A0A8;">Oily T-zone, normal/dry cheeks</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_type === 'sensitive' ? 'selected' : ''}" data-val="sensitive">
-                <div class="tvak-label">Sensitive</div>
-                <div style="font-size:12px; color:#A0A0A8;">Easily irritated or red</div>
-              </div>
-            </div>
-            <div class="tvak-actions" style="justify-content: flex-end;">
-              <button class="tvak-btn tvak-btn-primary btn-next">Next: Select Skin Tone &rarr;</button>
-            </div>
+        actionBtnsHtml = `
+          <div class="tvak-actions" style="justify-content: flex-end;">
+            <button class="tvak-btn tvak-btn-primary btn-next">Next Step &rarr;</button>
           </div>
         `;
-      } else if (step === 2) {
-        html = `
-          <div class="tvak-step-card">
-            <h3 class="tvak-step-heading">Step 2: Select your Skin Tone Group</h3>
-            <div class="tvak-option-grid">
-              <div class="tvak-option-card ${self.profile.skin_tone === 'fair_light' ? 'selected' : ''}" data-val="fair_light">
-                <div class="tvak-swatch" style="background:${self.swatchColors['fair_light']};"></div>
-                <div class="tvak-label">Fair / Light</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_tone === 'light_medium' ? 'selected' : ''}" data-val="light_medium">
-                <div class="tvak-swatch" style="background:${self.swatchColors['light_medium']};"></div>
-                <div class="tvak-label">Light – Medium</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_tone === 'medium_deep' ? 'selected' : ''}" data-val="medium_deep">
-                <div class="tvak-swatch" style="background:${self.swatchColors['medium_deep']};"></div>
-                <div class="tvak-label">Medium – Deep</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_tone === 'deep_rich' ? 'selected' : ''}" data-val="deep_rich">
-                <div class="tvak-swatch" style="background:${self.swatchColors['deep_rich']};"></div>
-                <div class="tvak-label">Deep & Rich</div>
-              </div>
-              <div class="tvak-option-card ${self.profile.skin_tone === 'very_deep' ? 'selected' : ''}" data-val="very_deep">
-                <div class="tvak-swatch" style="background:${self.swatchColors['very_deep']};"></div>
-                <div class="tvak-label">Very Deep</div>
-              </div>
-            </div>
-            <div class="tvak-actions">
-              <button class="tvak-btn tvak-btn-secondary btn-prev">&larr; Back</button>
-              <button class="tvak-btn tvak-btn-primary btn-next">Next: Select Concerns &rarr;</button>
-            </div>
+      } else if (step < self.totalSteps) {
+        actionBtnsHtml = `
+          <div class="tvak-actions">
+            <button class="tvak-btn tvak-btn-secondary btn-prev">&larr; Back</button>
+            <button class="tvak-btn tvak-btn-primary btn-next">Next Step &rarr;</button>
           </div>
         `;
-      } else if (step === 3) {
-        var concerns = [
-          { key: 'acne', label: 'Acne & Breakouts' },
-          { key: 'dry_dehydrated', label: 'Dry & Dehydrated' },
-          { key: 'oily_enlarged_pores', label: 'Oily & Enlarged Pores' },
-          { key: 'sensitive', label: 'Sensitivity & Redness' },
-          { key: 'hyperpigmentation', label: 'Hyperpigmentation & Dark Spots' },
-          { key: 'uneven_texture', label: 'Uneven Texture' },
-          { key: 'fine_lines_wrinkles', label: 'Fine Lines & Wrinkles' }
-        ];
-
-        var gridHtml = '';
-        concerns.forEach(function(c) {
-          var isSelected = self.profile.skin_concern.indexOf(c.key) !== -1 ? 'selected' : '';
-          gridHtml += `
-            <div class="tvak-option-card tvak-multi-card ${isSelected}" data-val="${c.key}">
-              <div class="tvak-label">${c.label}</div>
-            </div>
-          `;
-        });
-
-        html = `
-          <div class="tvak-step-card">
-            <h3 class="tvak-step-heading">Step 3: What are your target Skin Concerns?</h3>
-            <p style="text-align:center; color:#A0A0A8; margin-top:-15px; margin-bottom:20px;">Select all that apply</p>
-            <div class="tvak-option-grid">
-              ${gridHtml}
-            </div>
-            <div class="tvak-actions">
-              <button class="tvak-btn tvak-btn-secondary btn-prev">&larr; Back</button>
-              <button class="tvak-btn tvak-btn-primary btn-compute">Generate Bespoke Beauty Kit ✨</button>
-            </div>
+      } else {
+        actionBtnsHtml = `
+          <div class="tvak-actions">
+            <button class="tvak-btn tvak-btn-secondary btn-prev">&larr; Back</button>
+            <button class="tvak-btn tvak-btn-primary btn-compute">Generate Bespoke Beauty Kit ✨</button>
           </div>
         `;
       }
+
+      var subtext = stepDef.subheading ? `<p style="text-align:center; color:#A0A0A8; margin-top:-15px; margin-bottom:20px;">${stepDef.subheading}</p>` : '';
+
+      var html = `
+        <div class="tvak-step-card">
+          <h3 class="tvak-step-heading">${stepDef.heading}</h3>
+          ${subtext}
+          <div class="tvak-option-grid">
+            ${gridHtml}
+          </div>
+          ${actionBtnsHtml}
+        </div>
+      `;
 
       $area.html(html);
     },
@@ -189,12 +257,12 @@
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
 
-      // Render loading state
+      // Loading spinner state
       $area.html(`
         <div class="tvak-consultation-loading">
           <div class="tvak-luxury-spinner"></div>
           <h3 class="tvak-step-heading">Formulating Your Bespoke Beauty Kit...</h3>
-          <p style="color:#A0A0A8;">Evaluating dermatological weights, shade matrices, and anti-collision guardrails</p>
+          <p style="color:#A0A0A8;">Evaluating dynamic master data weights, shade matrices, and anti-collision guardrails</p>
         </div>
       `);
 
@@ -204,7 +272,9 @@
         contentType: 'application/json',
         data: JSON.stringify(self.profile),
         beforeSend: function(xhr) {
-          xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
+          if (tvak_vars && tvak_vars.nonce) {
+            xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
+          }
         },
         success: function(response) {
           if (response.success) {
@@ -225,7 +295,6 @@
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
 
-      // Initialize all items as selected by default
       data.items.forEach(function(item) {
         if (typeof item.selected === 'undefined') {
           item.selected = true;
@@ -285,32 +354,33 @@
     bindEvents: function() {
       var self = this;
 
-      // Option Card Selection
+      // Dynamic Option Card Selection Handler
       self.$container.on('click', '.tvak-option-card', function() {
         var $card = $(this);
+        var attr = $card.data('attr');
         var val = $card.data('val');
+        var type = $card.data('type');
 
-        if (self.currentStep === 1) {
-          self.profile.skin_type = val;
-          self.$container.find('.tvak-option-card').removeClass('selected');
-          $card.addClass('selected');
-        } else if (self.currentStep === 2) {
-          self.profile.skin_tone = val;
-          self.$container.find('.tvak-option-card').removeClass('selected');
-          $card.addClass('selected');
-        } else if (self.currentStep === 3) {
-          var idx = self.profile.skin_concern.indexOf(val);
+        if (type === 'multi_select') {
+          if (!Array.isArray(self.profile[attr])) {
+            self.profile[attr] = [];
+          }
+          var idx = self.profile[attr].indexOf(val);
           if (idx === -1) {
-            self.profile.skin_concern.push(val);
+            self.profile[attr].push(val);
             $card.addClass('selected');
           } else {
-            self.profile.skin_concern.splice(idx, 1);
+            self.profile[attr].splice(idx, 1);
             $card.removeClass('selected');
           }
+        } else {
+          self.profile[attr] = val;
+          self.$container.find(`.tvak-option-card[data-attr="${attr}"]`).removeClass('selected');
+          $card.addClass('selected');
         }
       });
 
-      // Checkbox Toggle for Individual Kit Items
+      // Item Checkbox Toggle
       self.$container.on('change', '.tvak-item-toggle-chk', function(e) {
         e.stopPropagation();
         var idx = $(this).data('idx');
@@ -339,21 +409,25 @@
         }
       });
 
-      // Navigation Buttons
+      // Step Navigation Buttons
       self.$container.on('click', '.btn-next', function() {
-        self.renderStep(self.currentStep + 1);
+        if (self.currentStep < self.totalSteps) {
+          self.renderStep(self.currentStep + 1);
+        }
       });
 
       self.$container.on('click', '.btn-prev', function() {
-        self.renderStep(self.currentStep - 1);
+        if (self.currentStep > 1) {
+          self.renderStep(self.currentStep - 1);
+        }
       });
 
-      // Compute Recommendation
+      // Compute Recommendation Trigger
       self.$container.on('click', '.btn-compute', function() {
         self.fetchRecommendation();
       });
 
-      // Add Selected Kit Items to Cart
+      // Add Kit to Cart Action
       self.$container.on('click', '.btn-add-kit-cart', function() {
         self.addKitToCart();
       });
@@ -385,7 +459,9 @@
           profile: self.profile
         }),
         beforeSend: function(xhr) {
-          xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
+          if (tvak_vars && tvak_vars.nonce) {
+            xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
+          }
         },
         success: function(res) {
           if (res.success) {

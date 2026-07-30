@@ -29,31 +29,19 @@ class Tvak_REST_API {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [__CLASS__, 'handle_recommend'],
             'permission_callback' => '__return_true',
-            'args'                => [
-                'skin_type' => [
-                    'required'          => false,
-                    'type'              => 'string',
-                    'sanitize_callback' => 'sanitize_key',
-                ],
-                'skin_tone' => [
-                    'required'          => false,
-                    'type'              => 'string',
-                    'sanitize_callback' => 'sanitize_key',
-                ],
-                'skin_concern' => [
-                    'required'          => false,
-                    'type'              => 'array',
-                    'sanitize_callback' => function ($param) {
-                        return is_array($param) ? array_map('sanitize_key', $param) : [];
-                    },
-                ],
-            ],
         ]);
 
         // Attributes Quiz Definition Endpoint
         register_rest_route(self::NAMESPACE, '/attributes', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [__CLASS__, 'handle_get_attributes'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // Quiz Dynamic Configuration Endpoint
+        register_rest_route(self::NAMESPACE, '/quiz-config', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [__CLASS__, 'handle_get_quiz_config'],
             'permission_callback' => '__return_true',
         ]);
 
@@ -117,13 +105,67 @@ class Tvak_REST_API {
         $attributes = Tvak_Cache::get($cache_key);
 
         if (!$attributes) {
-            $attributes = Tvak_Attribute::get_all();
+            $attributes = Tvak_Master_Data::get_attributes(true);
             Tvak_Cache::set($cache_key, $attributes, 3600);
         }
 
         return new WP_REST_Response([
             'success'    => true,
             'attributes' => $attributes,
+        ], 200);
+    }
+
+    /**
+     * Handle dynamic quiz configuration request.
+     *
+     * @param WP_REST_Request $request Request.
+     * @return WP_REST_Response
+     */
+    public static function handle_get_quiz_config(WP_REST_Request $request) {
+        $cache_key = 'quiz_config_payload';
+        $quiz_config = Tvak_Cache::get($cache_key);
+
+        if (!$quiz_config) {
+            $attributes = Tvak_Master_Data::get_attributes(true);
+            $steps = [];
+            $step_num = 1;
+
+            foreach ($attributes as $attr) {
+                if (empty($attr['terms'])) {
+                    continue;
+                }
+
+                $heading = sprintf(__('Step %d: Select your %s', 'tvak-beauty-kit'), $step_num, $attr['label']);
+                if ($attr['attribute_code'] === 'skin_type') {
+                    $heading = sprintf(__('Step %d: What is your primary Skin Type?', 'tvak-beauty-kit'), $step_num);
+                } elseif ($attr['attribute_code'] === 'skin_tone') {
+                    $heading = sprintf(__('Step %d: Select your Skin Tone Group', 'tvak-beauty-kit'), $step_num);
+                } elseif ($attr['attribute_code'] === 'skin_concern') {
+                    $heading = sprintf(__('Step %d: What are your target Skin Concerns?', 'tvak-beauty-kit'), $step_num);
+                }
+
+                $steps[] = [
+                    'step'           => $step_num++,
+                    'attribute_code' => $attr['attribute_code'],
+                    'label'          => $attr['label'],
+                    'heading'        => $heading,
+                    'subheading'     => $attr['description'] ?? '',
+                    'input_type'     => $attr['input_type'] ?? 'single_select',
+                    'terms'          => array_values($attr['terms']),
+                ];
+            }
+
+            $quiz_config = [
+                'total_steps' => count($steps),
+                'steps'       => $steps,
+            ];
+
+            Tvak_Cache::set($cache_key, $quiz_config, 3600);
+        }
+
+        return new WP_REST_Response([
+            'success'     => true,
+            'quiz_config' => $quiz_config,
         ], 200);
     }
 
@@ -168,3 +210,4 @@ class Tvak_REST_API {
         );
     }
 }
+

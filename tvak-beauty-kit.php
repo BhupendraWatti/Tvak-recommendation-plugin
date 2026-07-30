@@ -64,6 +64,7 @@ final class Tvak_Beauty_Kit {
      */
     private function load_dependencies() {
         require_once TVAK_PLUGIN_DIR . 'includes/class-tvak-db.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-master-data.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-attribute.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-rule.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';

@@ -3,10 +3,10 @@
  * Admin Management Controller & Interface
  *
  * Handles WordPress Dashboard menus, rule configuration forms, variant mapping UI,
- * and the Rule Simulator tool.
+ * Master Data management, and the Rule Simulator tool.
  *
  * @package TVAK_Beauty_Kit
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 if (!defined('ABSPATH')) {
@@ -23,6 +23,9 @@ class Tvak_Admin {
         add_action('admin_post_tvak_save_product_rule', [__CLASS__, 'handle_save_product_rule']);
         add_action('admin_post_tvak_save_variant_mapping', [__CLASS__, 'handle_save_variant_mapping']);
         add_action('admin_post_tvak_delete_variant_mapping', [__CLASS__, 'handle_delete_variant_mapping']);
+        add_action('admin_post_tvak_save_master_attribute', [__CLASS__, 'handle_save_master_attribute']);
+        add_action('admin_post_tvak_save_master_term', [__CLASS__, 'handle_save_master_term']);
+        add_action('admin_post_tvak_delete_master_term', [__CLASS__, 'handle_delete_master_term']);
     }
 
     /**
@@ -50,6 +53,15 @@ class Tvak_Admin {
 
         add_submenu_page(
             'tvak-engine',
+            __('Master Data Manager', 'tvak-beauty-kit'),
+            __('Master Data', 'tvak-beauty-kit'),
+            'manage_options',
+            'tvak-master-data',
+            [__CLASS__, 'render_master_data_page']
+        );
+
+        add_submenu_page(
+            'tvak-engine',
             __('Variant Matrix', 'tvak-beauty-kit'),
             __('Variant Matrix', 'tvak-beauty-kit'),
             'manage_options',
@@ -68,6 +80,310 @@ class Tvak_Admin {
     }
 
     /**
+     * Render Master Data Management Page.
+     */
+    public static function render_master_data_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $attributes = Tvak_Master_Data::get_attributes(false);
+        $edit_term_id = isset($_GET['edit_term']) ? (int) $_GET['edit_term'] : 0;
+        $edit_term = null;
+
+        if ($edit_term_id) {
+            global $wpdb;
+            $edit_term = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$wpdb->prefix}tvak_master_terms WHERE term_id = %d", $edit_term_id),
+                ARRAY_A
+            );
+        }
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('TVAK Master Data Manager', 'tvak-beauty-kit'); ?></h1>
+            <p><?php esc_html_e('Manage dynamic skin types, skin tones, skin concerns, and custom attributes. These values act as the single source of truth across the Quiz UI, Engine Evaluator, Variant Resolver, and Admin Simulator.', 'tvak-beauty-kit'); ?></p>
+
+            <?php if (isset($_GET['message'])) : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p>
+                        <?php
+                        if ($_GET['message'] === 'attr_saved') esc_html_e('Master attribute saved successfully!', 'tvak-beauty-kit');
+                        elseif ($_GET['message'] === 'term_saved') esc_html_e('Master term value saved successfully!', 'tvak-beauty-kit');
+                        elseif ($_GET['message'] === 'term_deleted') esc_html_e('Master term value deleted successfully!', 'tvak-beauty-kit');
+                        ?>
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <!-- Left Column: Add / Edit Term Form -->
+                <div style="flex: 1; background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; height: fit-content;">
+                    <h2><?php echo $edit_term ? esc_html__('Edit Master Option Value', 'tvak-beauty-kit') : esc_html__('Add New Master Option Value', 'tvak-beauty-kit'); ?></h2>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="tvak_save_master_term" />
+                        <?php wp_nonce_field('tvak_save_master_term_nonce', 'tvak_nonce'); ?>
+
+                        <table class="form-table" style="width: 100%;">
+                            <tr>
+                                <th scope="row"><label for="attribute_code"><?php esc_html_e('Target Master Attribute', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <select name="attribute_code" id="attribute_code" required style="width: 100%;">
+                                        <?php foreach ($attributes as $attr) : ?>
+                                            <option value="<?php echo esc_attr($attr['attribute_code']); ?>" <?php selected($edit_term['attribute_code'] ?? '', $attr['attribute_code']); ?>>
+                                                <?php echo esc_html($attr['label']); ?> (<code><?php echo esc_html($attr['attribute_code']); ?></code>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="term_slug"><?php esc_html_e('Option Machine Slug', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="text" name="term_slug" id="term_slug" value="<?php echo esc_attr($edit_term['term_slug'] ?? ''); ?>" required placeholder="e.g. rosacea, golden_tan" class="regular-text" <?php echo $edit_term ? 'readonly' : ''; ?> />
+                                    <p class="description"><?php esc_html_e('Immutable machine key used internally by the engine.', 'tvak-beauty-kit'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="label"><?php esc_html_e('Display Label', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="text" name="label" id="label" value="<?php echo esc_attr($edit_term['label'] ?? ''); ?>" required placeholder="e.g. Rosacea & Redness" class="regular-text" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="description"><?php esc_html_e('Sub-text Description', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="text" name="description" id="description" value="<?php echo esc_attr($edit_term['description'] ?? ''); ?>" placeholder="e.g. Easily irritated or prone to flushes" class="regular-text" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="swatch_color"><?php esc_html_e('Swatch Color (HEX)', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="color" name="swatch_color" id="swatch_color" value="<?php echo esc_attr($edit_term['swatch_color'] ?? '#E8CEB8'); ?>" />
+                                    <span class="description"><?php esc_html_e('Used for Skin Tone swatches in quiz card UI.', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="sort_order"><?php esc_html_e('Sort Order', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="sort_order" id="sort_order" value="<?php echo esc_attr($edit_term['sort_order'] ?? 1); ?>" class="small-text" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('Status', 'tvak-beauty-kit'); ?></th>
+                                <td>
+                                    <label><input type="checkbox" name="is_active" value="1" <?php checked($edit_term['is_active'] ?? 1, 1); ?> /> <?php esc_html_e('Active in Engine & Quiz UI', 'tvak-beauty-kit'); ?></label>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <p class="submit">
+                            <input type="submit" class="button button-primary" value="<?php echo $edit_term ? esc_attr__('Update Master Option', 'tvak-beauty-kit') : esc_attr__('Save New Master Option', 'tvak-beauty-kit'); ?>" />
+                            <?php if ($edit_term) : ?>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=tvak-master-data')); ?>" class="button button-secondary"><?php esc_html_e('Cancel Edit', 'tvak-beauty-kit'); ?></a>
+                            <?php endif; ?>
+                        </p>
+                    </form>
+
+                    <hr style="margin: 25px 0;" />
+
+                    <h2><?php esc_html_e('Add New Master Attribute Group', 'tvak-beauty-kit'); ?></h2>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="tvak_save_master_attribute" />
+                        <?php wp_nonce_field('tvak_save_master_attribute_nonce', 'tvak_nonce'); ?>
+
+                        <p>
+                            <label><strong><?php esc_html_e('Attribute Code:', 'tvak-beauty-kit'); ?></strong></label><br />
+                            <input type="text" name="attribute_code" placeholder="e.g. age_group" required class="regular-text" />
+                        </p>
+                        <p>
+                            <label><strong><?php esc_html_e('Attribute Label:', 'tvak-beauty-kit'); ?></strong></label><br />
+                            <input type="text" name="label" placeholder="e.g. Age Bracket" required class="regular-text" />
+                        </p>
+                        <p>
+                            <label><strong><?php esc_html_e('Quiz Input Type:', 'tvak-beauty-kit'); ?></strong></label><br />
+                            <select name="input_type">
+                                <option value="single_select"><?php esc_html_e('Single Select (Radio Card)', 'tvak-beauty-kit'); ?></option>
+                                <option value="multi_select"><?php esc_html_e('Multi Select (Checkbox Card)', 'tvak-beauty-kit'); ?></option>
+                            </select>
+                        </p>
+                        <p><input type="submit" class="button button-secondary" value="<?php esc_attr_e('Create Master Attribute Group', 'tvak-beauty-kit'); ?>" /></p>
+                    </form>
+                </div>
+
+                <!-- Right Column: Registered Master Data List -->
+                <div style="flex: 1.5; background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px;">
+                    <h2><?php esc_html_e('Registered Master Attributes & Option Values', 'tvak-beauty-kit'); ?></h2>
+
+                    <?php foreach ($attributes as $attr) : ?>
+                        <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #D4AF37; padding-bottom: 8px; margin-bottom: 12px;">
+                                <div>
+                                    <h3 style="margin: 0; display: inline-block;"><?php echo esc_html($attr['label']); ?></h3>
+                                    <code style="margin-left: 8px;">code: <?php echo esc_html($attr['attribute_code']); ?></code>
+                                </div>
+                                <span class="badge" style="background: #2271b1; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 11px;">
+                                    <?php echo esc_html(strtoupper($attr['input_type'])); ?>
+                                </span>
+                            </div>
+
+                            <table class="widefat striped">
+                                <thead>
+                                    <tr>
+                                        <th><?php esc_html_e('Order', 'tvak-beauty-kit'); ?></th>
+                                        <th><?php esc_html_e('Slug', 'tvak-beauty-kit'); ?></th>
+                                        <th><?php esc_html_e('Label', 'tvak-beauty-kit'); ?></th>
+                                        <th><?php esc_html_e('Swatch', 'tvak-beauty-kit'); ?></th>
+                                        <th><?php esc_html_e('Status', 'tvak-beauty-kit'); ?></th>
+                                        <th><?php esc_html_e('Actions', 'tvak-beauty-kit'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (!empty($attr['terms'])) : ?>
+                                        <?php foreach ($attr['terms'] as $t) : ?>
+                                            <tr>
+                                                <td><?php echo esc_html($t['sort_order']); ?></td>
+                                                <td><code><?php echo esc_html($t['term_slug']); ?></code></td>
+                                                <td>
+                                                    <strong><?php echo esc_html($t['label']); ?></strong>
+                                                    <?php if (!empty($t['description'])) : ?>
+                                                        <br /><small style="color: #666;"><?php echo esc_html($t['description']); ?></small>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if (!empty($t['swatch_color'])) : ?>
+                                                        <span style="display: inline-block; width: 20px; height: 20px; background: <?php echo esc_attr($t['swatch_color']); ?>; border: 1px solid #ccc; border-radius: 50%; vertical-align: middle;"></span>
+                                                    <?php else : ?>
+                                                        <span style="color: #bbb;">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if ($t['is_active']) : ?>
+                                                        <span style="color: green; font-weight: bold;">✔ Active</span>
+                                                    <?php else : ?>
+                                                        <span style="color: red;">✖ Inactive</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <a href="<?php echo esc_url(admin_url('admin.php?page=tvak-master-data&edit_term=' . $t['term_id'])); ?>" class="button button-small button-secondary"><?php esc_html_e('Edit', 'tvak-beauty-kit'); ?></a>
+                                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display: inline;">
+                                                        <input type="hidden" name="action" value="tvak_delete_master_term" />
+                                                        <input type="hidden" name="term_id" value="<?php echo esc_attr($t['term_id']); ?>" />
+                                                        <?php wp_nonce_field('tvak_delete_master_term_nonce', 'tvak_nonce'); ?>
+                                                        <input type="submit" class="button button-small button-link-delete" value="<?php esc_attr_e('Delete', 'tvak-beauty-kit'); ?>" onclick="return confirm('Delete this master term?');" />
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php else : ?>
+                                        <tr><td colspan="6"><?php esc_html_e('No terms defined for this attribute group yet.', 'tvak-beauty-kit'); ?></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Handle Save Master Attribute Post.
+     */
+    public static function handle_save_master_attribute() {
+        check_admin_referer('tvak_save_master_attribute_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $code = sanitize_key($_POST['attribute_code'] ?? '');
+        $label = sanitize_text_field($_POST['label'] ?? '');
+        $input_type = sanitize_text_field($_POST['input_type'] ?? 'single_select');
+
+        if ($code && $label) {
+            Tvak_Master_Data::save_attribute([
+                'attribute_code' => $code,
+                'label'          => $label,
+                'input_type'     => $input_type,
+                'is_active'      => 1,
+            ]);
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-master-data&message=attr_saved'));
+        exit;
+    }
+
+    /**
+     * Handle Save Master Term Post.
+     */
+    public static function handle_save_master_term() {
+        check_admin_referer('tvak_save_master_term_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $attr_code    = sanitize_key($_POST['attribute_code'] ?? '');
+        $term_slug    = sanitize_key($_POST['term_slug'] ?? '');
+        $label        = sanitize_text_field($_POST['label'] ?? '');
+        $description  = sanitize_text_field($_POST['description'] ?? '');
+        $swatch_color = sanitize_text_field($_POST['swatch_color'] ?? '');
+        $sort_order   = (int) ($_POST['sort_order'] ?? 1);
+        $is_active    = isset($_POST['is_active']) ? 1 : 0;
+
+        if ($attr_code && $term_slug && $label) {
+            Tvak_Master_Data::save_term([
+                'attribute_code' => $attr_code,
+                'term_slug'      => $term_slug,
+                'label'          => $label,
+                'description'    => $description,
+                'swatch_color'   => $swatch_color,
+                'sort_order'     => $sort_order,
+                'is_active'      => $is_active,
+            ]);
+
+            // Sync with legacy attribute table
+            $master_attr = Tvak_Master_Data::get_attribute_by_code($attr_code, false);
+            if ($master_attr) {
+                Tvak_Attribute::save([
+                    'attribute_code' => $attr_code,
+                    'label'          => $master_attr['label'],
+                    'category'       => $master_attr['category'],
+                    'options'        => $master_attr['options'],
+                ]);
+            }
+
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-master-data&message=term_saved'));
+        exit;
+    }
+
+    /**
+     * Handle Delete Master Term Post.
+     */
+    public static function handle_delete_master_term() {
+        check_admin_referer('tvak_delete_master_term_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $term_id = (int) ($_POST['term_id'] ?? 0);
+        if ($term_id) {
+            Tvak_Master_Data::delete_term($term_id);
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-master-data&message=term_deleted'));
+        exit;
+    }
+
+    /**
      * Render Product Rules Page.
      */
     public static function render_product_rules_page() {
@@ -77,9 +393,8 @@ class Tvak_Admin {
 
         global $wpdb;
         $slots = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}tvak_kit_slots ORDER BY sort_order ASC", ARRAY_A);
-        $attributes = Tvak_Attribute::get_all();
+        $attributes = Tvak_Master_Data::get_attributes(true);
 
-        // Get all WooCommerce products
         $wc_products = get_posts([
             'post_type'      => 'product',
             'posts_per_page' => -1,
@@ -158,7 +473,7 @@ class Tvak_Admin {
                         <?php foreach ($attributes as $attr) :
                             $attr_code = $attr['attribute_code'];
                             $rule_attr = $existing_rule['attribute_rules'][$attr_code] ?? ['weight' => 1.00, 'match_matrix' => []];
-                            $options   = $attr['options'];
+                            $terms     = $attr['terms'] ?? [];
                         ?>
                             <div style="background: #f9f9f9; border: 1px solid #e5e5e5; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
                                 <h4><?php echo esc_html($attr['label']); ?> (<code><?php echo esc_html($attr_code); ?></code>)</h4>
@@ -173,7 +488,9 @@ class Tvak_Admin {
                                             <tr><th><?php esc_html_e('Option Value', 'tvak-beauty-kit'); ?></th><th><?php esc_html_e('Match Score M', 'tvak-beauty-kit'); ?></th></tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($options as $opt_key => $opt_label) :
+                                            <?php foreach ($terms as $term) :
+                                                $opt_key   = $term['term_slug'];
+                                                $opt_label = $term['label'];
                                                 $score_val = $rule_attr['match_matrix'][$opt_key] ?? '1.00';
                                             ?>
                                                 <tr>
@@ -251,7 +568,7 @@ class Tvak_Admin {
         }
 
         $existing_mappings = $selected_product_id ? Tvak_Variant_Map::get_mappings_for_product($selected_product_id) : [];
-        $attributes        = Tvak_Attribute::get_all();
+        $attributes        = Tvak_Master_Data::get_attributes(true);
 
         ?>
         <div class="wrap">
@@ -304,8 +621,8 @@ class Tvak_Admin {
                                     <td>
                                         <select name="criteria[<?php echo esc_attr($attr['attribute_code']); ?>]">
                                             <option value=""><?php esc_html_e('-- Any / Ignore --', 'tvak-beauty-kit'); ?></option>
-                                            <?php foreach ($attr['options'] as $opt_key => $opt_label) : ?>
-                                                <option value="<?php echo esc_attr($opt_key); ?>"><?php echo esc_html($opt_label); ?></option>
+                                            <?php foreach ($attr['terms'] as $term) : ?>
+                                                <option value="<?php echo esc_attr($term['term_slug']); ?>"><?php echo esc_html($term['label']); ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </td>
@@ -424,75 +741,41 @@ class Tvak_Admin {
             return;
         }
 
-        $attributes = Tvak_Attribute::get_all();
+        $attributes = Tvak_Master_Data::get_attributes(true);
         $simulation_result = null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tvak_simulate_nonce'])) {
             check_admin_referer('tvak_simulate_nonce_action', 'tvak_simulate_nonce');
 
-            $mock_profile = [
-                'skin_type'    => sanitize_key($_POST['skin_type'] ?? 'dry'),
-                'skin_tone'    => sanitize_key($_POST['skin_tone'] ?? 'fair_light'),
-                'skin_concern' => array_map('sanitize_key', $_POST['skin_concern'] ?? []),
-            ];
-
-            // Run mock evaluation using Model 2 rules logic
-            $grouped_rules = Tvak_Product_Rule::get_all_active_grouped_by_slot();
-            $sim_items = [];
-
-            foreach ($grouped_rules as $slot_id => $rules) {
-                $top_product = null;
-                $max_score = -1;
-
-                foreach ($rules as $r) {
-                    $pid = (int) $r['product_id'];
-                    $boost = (float) $r['priority_boost'];
-                    $attrs = $r['attribute_rules'];
-
-                    $weighted_sum = 0;
-                    $total_weight = 0;
-
-                    foreach ($attrs as $code => $rule_data) {
-                        $w = $rule_data['weight'];
-                        $matrix = $rule_data['match_matrix'];
-
-                        $user_val = $mock_profile[$code] ?? null;
-                        $match_val = 0;
-
-                        if (is_array($user_val)) {
-                            $matches = [];
-                            foreach ($user_val as $val_item) {
-                                $matches[] = isset($matrix[$val_item]) ? (float) $matrix[$val_item] : 0.0;
-                            }
-                            $match_val = !empty($matches) ? max($matches) : 0.0;
-                        } elseif ($user_val) {
-                            $match_val = isset($matrix[$user_val]) ? (float) $matrix[$user_val] : 0.0;
-                        }
-
-                        $weighted_sum += $w * $match_val;
-                        $total_weight += $w;
-                    }
-
-                    $final_score = $total_weight > 0 ? min(1.0, ($weighted_sum / $total_weight) + $boost) : $boost;
-
-                    // Sensitive skin override check
-                    if (($mock_profile['skin_type'] === 'sensitive' || in_array('sensitive', $mock_profile['skin_concern'])) && get_post_meta($pid, '_tvak_contains_fragrance', true) === 'yes') {
-                        $final_score = 0.0;
-                    }
-
-                    if ($final_score > $max_score) {
-                        $max_score = $final_score;
-                        $top_product = [
-                            'product_id'   => $pid,
-                            'title'        => get_the_title($pid),
-                            'score'        => round($final_score * 100, 1),
-                            'variation_id' => Tvak_Variant_Map::resolve_variation($pid, $mock_profile),
-                        ];
+            $mock_profile_raw = [];
+            foreach ($attributes as $attr) {
+                $code = $attr['attribute_code'];
+                if (isset($_POST[$code])) {
+                    if (is_array($_POST[$code])) {
+                        $mock_profile_raw[$code] = array_map('sanitize_key', $_POST[$code]);
+                    } else {
+                        $mock_profile_raw[$code] = sanitize_key($_POST[$code]);
                     }
                 }
+            }
 
-                if ($top_product) {
-                    $sim_items[] = $top_product;
+            $profile_obj = new Tvak_User_Profile($mock_profile_raw);
+            $mock_profile = $profile_obj->to_array();
+
+            $orchestrator = new Tvak_Engine_Orchestrator();
+            $eval_result  = $orchestrator->recommend($profile_obj);
+
+            $sim_items = [];
+            if (!empty($eval_result['items'])) {
+                foreach ($eval_result['items'] as $item) {
+                    $sim_items[] = [
+                        'product_id'   => $item['product_id'],
+                        'title'        => $item['title'],
+                        'score'        => $item['score_pct'],
+                        'variation_id' => $item['variation_id'],
+                        'shade_name'   => $item['shade_name'],
+                        'rationale'    => $item['rationale'],
+                    ];
                 }
             }
 
@@ -516,14 +799,14 @@ class Tvak_Admin {
                         <?php foreach ($attributes as $attr) : ?>
                             <p>
                                 <strong><?php echo esc_html($attr['label']); ?>:</strong><br />
-                                <?php if ($attr['attribute_code'] === 'skin_concern') : ?>
-                                    <?php foreach ($attr['options'] as $k => $v) : ?>
-                                        <label><input type="checkbox" name="skin_concern[]" value="<?php echo esc_attr($k); ?>" /> <?php echo esc_html($v); ?></label><br />
+                                <?php if ($attr['input_type'] === 'multi_select') : ?>
+                                    <?php foreach ($attr['terms'] as $term) : ?>
+                                        <label><input type="checkbox" name="<?php echo esc_attr($attr['attribute_code']); ?>[]" value="<?php echo esc_attr($term['term_slug']); ?>" /> <?php echo esc_html($term['label']); ?></label><br />
                                     <?php endforeach; ?>
                                 <?php else : ?>
                                     <select name="<?php echo esc_attr($attr['attribute_code']); ?>" style="width: 100%;">
-                                        <?php foreach ($attr['options'] as $k => $v) : ?>
-                                            <option value="<?php echo esc_attr($k); ?>"><?php echo esc_html($v); ?></option>
+                                        <?php foreach ($attr['terms'] as $term) : ?>
+                                            <option value="<?php echo esc_attr($term['term_slug']); ?>"><?php echo esc_html($term['label']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 <?php endif; ?>
@@ -538,7 +821,7 @@ class Tvak_Admin {
                     <h2><?php esc_html_e('Simulation Evaluation Results', 'tvak-beauty-kit'); ?></h2>
                     <?php if ($simulation_result) : ?>
                         <div style="background: #e7f5ea; border: 1px solid #4ab866; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
-                            <strong><?php esc_html_e('Evaluated Profile:', 'tvak-beauty-kit'); ?></strong>
+                            <strong><?php esc_html_e('Evaluated Profile Vector:', 'tvak-beauty-kit'); ?></strong>
                             <code><?php echo esc_html(wp_json_encode($simulation_result['profile'])); ?></code>
                         </div>
 
@@ -547,7 +830,8 @@ class Tvak_Admin {
                                 <tr>
                                     <th><?php esc_html_e('Product', 'tvak-beauty-kit'); ?></th>
                                     <th><?php esc_html_e('Fit Score', 'tvak-beauty-kit'); ?></th>
-                                    <th><?php esc_html_e('Resolved Variation ID', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Resolved Shade / SKU', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Rationale', 'tvak-beauty-kit'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -555,7 +839,13 @@ class Tvak_Admin {
                                     <tr>
                                         <td><strong><?php echo esc_html($item['title']); ?></strong> (ID: <?php echo esc_html($item['product_id']); ?>)</td>
                                         <td><span class="badge" style="background:#2271b1; color:#fff; padding:3px 8px; border-radius:10px;"><?php echo esc_html($item['score']); ?>%</span></td>
-                                        <td><code><?php echo esc_html($item['variation_id'] ?: 'Main Product / Simple'); ?></code></td>
+                                        <td>
+                                            <code><?php echo esc_html($item['variation_id'] ?: 'Main Product'); ?></code>
+                                            <?php if (!empty($item['shade_name'])) : ?>
+                                                <br /><small><?php echo esc_html($item['shade_name']); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><small><?php echo esc_html($item['rationale']); ?></small></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>

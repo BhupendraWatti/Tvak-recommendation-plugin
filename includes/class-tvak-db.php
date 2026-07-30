@@ -32,7 +32,7 @@ class Tvak_DB {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // 1. Attribute Registry Table
+        // 1. Attribute Registry Table (Legacy Compatibility)
         $table_attributes = $wpdb->prefix . 'tvak_attribute_registry';
         $sql_attributes = "CREATE TABLE {$table_attributes} (
             attribute_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -47,7 +47,46 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_attributes);
 
-        // 2. Kit Slots Table
+        // 2. Master Attributes Table
+        $table_master_attr = $wpdb->prefix . 'tvak_master_attributes';
+        $sql_master_attr = "CREATE TABLE {$table_master_attr} (
+            attribute_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            attribute_code VARCHAR(64) NOT NULL,
+            label VARCHAR(128) NOT NULL,
+            category VARCHAR(64) NOT NULL DEFAULT 'dermatological',
+            description TEXT NULL,
+            input_type VARCHAR(32) NOT NULL DEFAULT 'single_select',
+            sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (attribute_id),
+            UNIQUE KEY attribute_code (attribute_code),
+            KEY category (category),
+            KEY is_active (is_active)
+        ) {$charset_collate};";
+        dbDelta($sql_master_attr);
+
+        // 3. Master Terms Table
+        $table_master_terms = $wpdb->prefix . 'tvak_master_terms';
+        $sql_master_terms = "CREATE TABLE {$table_master_terms} (
+            term_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            attribute_code VARCHAR(64) NOT NULL,
+            term_slug VARCHAR(64) NOT NULL,
+            label VARCHAR(128) NOT NULL,
+            description TEXT NULL,
+            swatch_color VARCHAR(32) NULL,
+            icon_url VARCHAR(255) NULL,
+            sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (term_id),
+            UNIQUE KEY attr_term (attribute_code, term_slug),
+            KEY attribute_code (attribute_code),
+            KEY is_active (is_active)
+        ) {$charset_collate};";
+        dbDelta($sql_master_terms);
+
+        // 4. Kit Slots Table
         $table_slots = $wpdb->prefix . 'tvak_kit_slots';
         $sql_slots = "CREATE TABLE {$table_slots} (
             slot_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -61,7 +100,7 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_slots);
 
-        // 3. Product Rules Table
+        // 5. Product Rules Table
         $table_rules = $wpdb->prefix . 'tvak_product_rules';
         $sql_rules = "CREATE TABLE {$table_rules} (
             rule_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -76,7 +115,7 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_rules);
 
-        // 4. Product Rule Attributes Table
+        // 6. Product Rule Attributes Table
         $table_rule_attrs = $wpdb->prefix . 'tvak_product_rule_attributes';
         $sql_rule_attrs = "CREATE TABLE {$table_rule_attrs} (
             rule_attr_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -90,7 +129,7 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_rule_attrs);
 
-        // 5. Variant Mapping Matrix Table
+        // 7. Variant Mapping Matrix Table
         $table_variant_map = $wpdb->prefix . 'tvak_variant_mapping_matrix';
         $sql_variant_map = "CREATE TABLE {$table_variant_map} (
             map_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -106,7 +145,7 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_variant_map);
 
-        // 6. Recommendation Session Logs Table
+        // 8. Recommendation Session Logs Table
         $table_logs = $wpdb->prefix . 'tvak_recommendation_session_logs';
         $sql_logs = "CREATE TABLE {$table_logs} (
             log_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -188,7 +227,104 @@ class Tvak_DB {
             }
         }
 
-        // Seed Attribute Registry
+        // Seed Master Attributes
+        $table_master_attr = $wpdb->prefix . 'tvak_master_attributes';
+        $table_master_terms = $wpdb->prefix . 'tvak_master_terms';
+
+        $master_attributes = [
+            [
+                'attribute_code' => 'skin_type',
+                'label'          => 'Skin Type',
+                'category'       => 'dermatological',
+                'description'    => 'Select your primary skin type',
+                'input_type'     => 'single_select',
+                'sort_order'     => 1,
+                'terms'          => [
+                    ['term_slug' => 'dry', 'label' => 'Dry', 'description' => 'Tightness, flaking or dullness', 'sort_order' => 1],
+                    ['term_slug' => 'oily', 'label' => 'Oily', 'description' => 'Excess shine & enlarged pores', 'sort_order' => 2],
+                    ['term_slug' => 'normal', 'label' => 'Normal', 'description' => 'Well-balanced hydration', 'sort_order' => 3],
+                    ['term_slug' => 'combination', 'label' => 'Combination', 'description' => 'Oily T-zone, normal/dry cheeks', 'sort_order' => 4],
+                    ['term_slug' => 'sensitive', 'label' => 'Sensitive', 'description' => 'Easily irritated or red', 'sort_order' => 5],
+                ],
+            ],
+            [
+                'attribute_code' => 'skin_tone',
+                'label'          => 'Skin Tone',
+                'category'       => 'cosmetic',
+                'description'    => 'Select your skin tone group',
+                'input_type'     => 'single_select',
+                'sort_order'     => 2,
+                'terms'          => [
+                    ['term_slug' => 'fair_light', 'label' => 'Fair / Light', 'swatch_color' => '#F6E5D7', 'sort_order' => 1],
+                    ['term_slug' => 'light_medium', 'label' => 'Light – Medium', 'swatch_color' => '#E8CEB8', 'sort_order' => 2],
+                    ['term_slug' => 'medium_deep', 'label' => 'Medium – Deep', 'swatch_color' => '#C9A382', 'sort_order' => 3],
+                    ['term_slug' => 'deep_rich', 'label' => 'Deep & Rich', 'swatch_color' => '#8D5B3A', 'sort_order' => 4],
+                    ['term_slug' => 'very_deep', 'label' => 'Very Deep', 'swatch_color' => '#4F301F', 'sort_order' => 5],
+                ],
+            ],
+            [
+                'attribute_code' => 'skin_concern',
+                'label'          => 'Skin Concerns',
+                'category'       => 'dermatological',
+                'description'    => 'What are your target skin concerns?',
+                'input_type'     => 'multi_select',
+                'sort_order'     => 3,
+                'terms'          => [
+                    ['term_slug' => 'acne', 'label' => 'Acne & Breakouts', 'sort_order' => 1],
+                    ['term_slug' => 'dry_dehydrated', 'label' => 'Dry & Dehydrated', 'sort_order' => 2],
+                    ['term_slug' => 'oily_enlarged_pores', 'label' => 'Oily & Enlarged Pores', 'sort_order' => 3],
+                    ['term_slug' => 'sensitive', 'label' => 'Sensitivity & Redness', 'sort_order' => 4],
+                    ['term_slug' => 'hyperpigmentation', 'label' => 'Hyperpigmentation & Dark Spots', 'sort_order' => 5],
+                    ['term_slug' => 'uneven_texture', 'label' => 'Uneven Texture', 'sort_order' => 6],
+                    ['term_slug' => 'fine_lines_wrinkles', 'label' => 'Fine Lines & Wrinkles', 'sort_order' => 7],
+                ],
+            ],
+        ];
+
+        foreach ($master_attributes as $attr) {
+            $attr_code = $attr['attribute_code'];
+            $existing_attr = $wpdb->get_var(
+                $wpdb->prepare("SELECT attribute_id FROM {$table_master_attr} WHERE attribute_code = %s", $attr_code)
+            );
+
+            if (!$existing_attr) {
+                $wpdb->insert($table_master_attr, [
+                    'attribute_code' => $attr_code,
+                    'label'          => $attr['label'],
+                    'category'       => $attr['category'],
+                    'description'    => $attr['description'],
+                    'input_type'     => $attr['input_type'],
+                    'sort_order'     => $attr['sort_order'],
+                    'is_active'      => 1,
+                ]);
+            }
+
+            foreach ($attr['terms'] as $term) {
+                $term_slug = $term['term_slug'];
+                $existing_term = $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT term_id FROM {$table_master_terms} WHERE attribute_code = %s AND term_slug = %s",
+                        $attr_code,
+                        $term_slug
+                    )
+                );
+
+                if (!$existing_term) {
+                    $wpdb->insert($table_master_terms, [
+                        'attribute_code' => $attr_code,
+                        'term_slug'      => $term_slug,
+                        'label'          => $term['label'],
+                        'description'    => $term['description'] ?? null,
+                        'swatch_color'   => $term['swatch_color'] ?? null,
+                        'icon_url'       => $term['icon_url'] ?? null,
+                        'sort_order'     => $term['sort_order'] ?? 0,
+                        'is_active'      => 1,
+                    ]);
+                }
+            }
+        }
+
+        // Seed Legacy Attribute Registry Table for Backward Compatibility
         $table_attributes = $wpdb->prefix . 'tvak_attribute_registry';
         $default_attributes = [
             [
@@ -241,3 +377,4 @@ class Tvak_DB {
         }
     }
 }
+

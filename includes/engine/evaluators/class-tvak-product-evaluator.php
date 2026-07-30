@@ -82,23 +82,34 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
     public function get_rationale(Tvak_User_Profile $profile, array $rule_data, float $score): string {
         $product_id = (int) ($rule_data['product_id'] ?? 0);
         $title      = get_the_title($product_id);
-        $type       = ucfirst($profile->get_skin_type());
-        $concerns   = implode(', ', array_map('ucwords', str_replace('_', ' ', $profile->get_skin_concerns())));
 
-        if (!empty($concerns)) {
+        $label_map = class_exists('Tvak_Master_Data') ? Tvak_Master_Data::get_terms_label_map() : [];
+
+        $type_slug = $profile->get_skin_type();
+        $tone_slug = $profile->get_skin_tone();
+
+        $type_label = $label_map['skin_type'][$type_slug] ?? ucfirst(str_replace('_', ' ', $type_slug));
+        $tone_label = $label_map['skin_tone'][$tone_slug] ?? ucwords(str_replace('_', ' ', $tone_slug));
+
+        $concern_labels = [];
+        foreach ($profile->get_skin_concerns() as $c_slug) {
+            $concern_labels[] = $label_map['skin_concern'][$c_slug] ?? ucwords(str_replace('_', ' ', $c_slug));
+        }
+
+        if (!empty($concern_labels)) {
             return sprintf(
                 __('%s was specially selected for your %s skin profile to directly target %s with optimal formula balance.', 'tvak-beauty-kit'),
                 $title,
-                $type,
-                $concerns
+                $type_label,
+                implode(', ', $concern_labels)
             );
         }
 
         return sprintf(
             __('%s is harmonized with your %s skin type and %s skin tone for a radiant, balanced finish.', 'tvak-beauty-kit'),
             $title,
-            $type,
-            ucwords(str_replace('_', ' ', $profile->get_skin_tone()))
+            $type_label,
+            $tone_label
         );
     }
 }

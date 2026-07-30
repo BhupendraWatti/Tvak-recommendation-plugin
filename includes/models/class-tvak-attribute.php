@@ -25,11 +25,18 @@ class Tvak_Attribute {
     }
 
     /**
-     * Retrieve all registered attributes.
+     * Retrieve all registered attributes from Master Data.
      *
      * @return array
      */
     public static function get_all() {
+        if (class_exists('Tvak_Master_Data')) {
+            $master_attrs = Tvak_Master_Data::get_attributes(true);
+            if (!empty($master_attrs)) {
+                return $master_attrs;
+            }
+        }
+
         global $wpdb;
         $table = self::get_table_name();
         $results = $wpdb->get_results("SELECT * FROM {$table} ORDER BY category ASC, label ASC", ARRAY_A);
@@ -46,12 +53,19 @@ class Tvak_Attribute {
     }
 
     /**
-     * Retrieve attribute by code.
+     * Retrieve attribute by code from Master Data.
      *
      * @param string $code Attribute machine code.
      * @return array|null
      */
     public static function get_by_code($code) {
+        if (class_exists('Tvak_Master_Data')) {
+            $attr = Tvak_Master_Data::get_attribute_by_code($code, true);
+            if ($attr) {
+                return $attr;
+            }
+        }
+
         global $wpdb;
         $table = self::get_table_name();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE attribute_code = %s", $code), ARRAY_A);
@@ -71,6 +85,23 @@ class Tvak_Attribute {
      * @return int|bool Insertion ID or success boolean.
      */
     public static function save($data) {
+        if (class_exists('Tvak_Master_Data')) {
+            $attr_id = Tvak_Master_Data::save_attribute($data);
+            if (!empty($data['options']) && is_array($data['options'])) {
+                $sort = 1;
+                foreach ($data['options'] as $slug => $label) {
+                    Tvak_Master_Data::save_term([
+                        'attribute_code' => $data['attribute_code'],
+                        'term_slug'      => $slug,
+                        'label'          => $label,
+                        'sort_order'     => $sort++,
+                        'is_active'      => 1,
+                    ]);
+                }
+            }
+            return $attr_id;
+        }
+
         global $wpdb;
         $table = self::get_table_name();
 
@@ -111,3 +142,4 @@ class Tvak_Attribute {
         return $wpdb->insert_id;
     }
 }
+
