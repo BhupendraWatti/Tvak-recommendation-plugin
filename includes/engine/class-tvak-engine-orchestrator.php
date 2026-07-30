@@ -103,32 +103,53 @@ class Tvak_Engine_Orchestrator {
             $top_candidate = $candidates[0];
             $pid           = $top_candidate['product_id'];
 
-            // Resolve Variation & Stock Status
-            $variant_info  = Tvak_Variant_Resolver::resolve($pid, $profile);
+            // Resolve Variation & Stock Status with slot category hint
+            $variant_info  = Tvak_Variant_Resolver::resolve($pid, $profile, $slot_meta['slot_code']);
 
             $raw_kit_items[] = [
-                'product_id'   => $pid,
-                'variation_id' => $variant_info['variation_id'],
-                'shade_name'   => $variant_info['shade_name'],
-                'is_in_stock'  => $variant_info['is_in_stock'],
-                'score'        => $top_candidate['score'],
-                'score_pct'    => round($top_candidate['score'] * 100, 1),
-                'slot_code'    => $slot_meta['slot_code'],
-                'slot_name'    => $slot_meta['slot_name'],
-                'title'        => get_the_title($pid),
-                'rationale'    => $this->evaluator->get_rationale($profile, $top_candidate['rule'], $top_candidate['score']),
+                'product_id'      => $pid,
+                'variation_id'    => $variant_info['variation_id'],
+                'shade_name'      => $variant_info['shade_name'],
+                'shade_hex'       => $variant_info['shade_hex'] ?? '#D4AF37',
+                'is_in_stock'     => $variant_info['is_in_stock'],
+                'price'           => $variant_info['price'] ?? 49.00,
+                'price_formatted' => $variant_info['price_formatted'] ?? '$49.00',
+                'image_url'       => $variant_info['image_url'],
+                'all_shades'      => $variant_info['all_shades'] ?? [],
+                'score'           => $top_candidate['score'],
+                'score_pct'       => round($top_candidate['score'] * 100, 1),
+                'slot_code'       => $slot_meta['slot_code'],
+                'slot_name'       => $slot_meta['slot_name'],
+                'title'           => get_the_title($pid) ?: ('TVAK Bespoke ' . $slot_meta['slot_name']),
+                'rationale'       => $this->evaluator->get_rationale($profile, $top_candidate['rule'], $top_candidate['score']),
             ];
         }
 
         // Apply active ingredient conflict filter across kit
         $final_items = Tvak_Anti_Collision::filter_kit_conflicts($raw_kit_items);
 
+        // Compute Backend Kit Tiered Bundle Discount
+        $item_count = count($final_items);
+        $discount_pct = 0;
+        if ($item_count >= 5) {
+            $discount_pct = 20; // 20% off for 5+ items
+        } elseif ($item_count >= 3) {
+            $discount_pct = 15; // 15% off for 3-4 items
+        } elseif ($item_count >= 2) {
+            $discount_pct = 10; // 10% off for 2 items
+        }
+
         return [
-            'success' => true,
-            'kit_id'  => 'KIT-' . date('Ymd') . '-' . strtoupper(substr(md5(wp_json_encode($profile->to_array())), 0, 6)),
-            'profile' => $profile->to_array(),
-            'total'   => count($final_items),
-            'items'   => $final_items,
+            'success'            => true,
+            'kit_id'             => 'KIT-' . date('Ymd') . '-' . strtoupper(substr(md5(wp_json_encode($profile->to_array())), 0, 6)),
+            'profile'            => $profile->to_array(),
+            'total'              => $item_count,
+            'discount_thresholds'=> [
+                '2_items' => 10,
+                '3_items' => 15,
+                '5_items' => 20,
+            ],
+            'items'              => $final_items,
         ];
     }
 }

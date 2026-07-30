@@ -26,6 +26,9 @@ class Tvak_Admin {
         add_action('admin_post_tvak_save_master_attribute', [__CLASS__, 'handle_save_master_attribute']);
         add_action('admin_post_tvak_save_master_term', [__CLASS__, 'handle_save_master_term']);
         add_action('admin_post_tvak_delete_master_term', [__CLASS__, 'handle_delete_master_term']);
+        add_action('admin_post_tvak_save_product_shade', [__CLASS__, 'handle_save_product_shade']);
+        add_action('admin_post_tvak_delete_product_shade', [__CLASS__, 'handle_delete_product_shade']);
+        add_action('admin_post_tvak_toggle_product_has_shades', [__CLASS__, 'handle_toggle_product_has_shades']);
     }
 
     /**
@@ -67,6 +70,15 @@ class Tvak_Admin {
             'manage_options',
             'tvak-variant-matrix',
             [__CLASS__, 'render_variant_matrix_page']
+        );
+
+        add_submenu_page(
+            'tvak-engine',
+            __('Product Shades Manager', 'tvak-beauty-kit'),
+            __('Product Shades', 'tvak-beauty-kit'),
+            'manage_options',
+            'tvak-shades',
+            [__CLASS__, 'render_shades_page']
         );
 
         add_submenu_page(
@@ -883,4 +895,308 @@ class Tvak_Admin {
         </div>
         <?php
     }
+
+    /**
+     * Render Product Shades Manager Page.
+     */
+    public static function render_shades_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $wc_products = get_posts([
+            'post_type'      => 'product',
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ]);
+
+        $selected_product_id = isset($_GET['product_id']) ? (int) $_GET['product_id'] : (isset($wc_products[0]) ? $wc_products[0]->ID : 0);
+        $has_shades          = $selected_product_id ? Tvak_Product_Shade::get_product_has_shades($selected_product_id) : false;
+        $shades              = $selected_product_id ? Tvak_Product_Shade::get_shades_by_product($selected_product_id) : [];
+
+        $edit_shade_id = isset($_GET['edit_shade']) ? (int) $_GET['edit_shade'] : 0;
+        $edit_shade    = null;
+        if ($edit_shade_id) {
+            global $wpdb;
+            $edit_shade = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$wpdb->prefix}tvak_product_shades WHERE shade_id = %d", $edit_shade_id),
+                ARRAY_A
+            );
+        }
+
+        $variations = [];
+        if ($selected_product_id && class_exists('WC_Product')) {
+            $p_obj = wc_get_product($selected_product_id);
+            if ($p_obj && $p_obj->is_type('variable')) {
+                $variations = $p_obj->get_available_variations();
+            }
+        }
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('TVAK Recommendation Engine - Product Shades Manager', 'tvak-beauty-kit'); ?></h1>
+            <p><?php esc_html_e('Enable visual shade variations per product and configure visual hex colors, variation mappings, custom pricing, and stock status.', 'tvak-beauty-kit'); ?></p>
+
+            <?php if (isset($_GET['message'])) : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p>
+                        <?php
+                        if ($_GET['message'] === 'shade_saved') esc_html_e('Product shade saved successfully!', 'tvak-beauty-kit');
+                        elseif ($_GET['message'] === 'shade_deleted') esc_html_e('Product shade deleted successfully!', 'tvak-beauty-kit');
+                        elseif ($_GET['message'] === 'toggled') esc_html_e('Product shade mode updated!', 'tvak-beauty-kit');
+                        ?>
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <div class="postbox" style="padding: 20px; background: #fff; margin-top: 20px;">
+                <form method="get" action="">
+                    <input type="hidden" name="page" value="tvak-shades" />
+                    <label for="product_select"><strong><?php esc_html_e('Select Product to Manage Shades:', 'tvak-beauty-kit'); ?></strong></label>
+                    <select name="product_id" id="product_select" onchange="this.form.submit()" style="min-width: 350px; margin-left: 10px;">
+                        <?php foreach ($wc_products as $p) : ?>
+                            <option value="<?php echo esc_attr($p->ID); ?>" <?php selected($selected_product_id, $p->ID); ?>>
+                                <?php echo esc_html($p->post_title); ?> (ID: <?php echo esc_html($p->ID); ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
+
+            <?php if ($selected_product_id) : ?>
+                <div class="postbox" style="padding: 20px; background: #fff; border-left: 4px solid #D4AF37;">
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="tvak_toggle_product_has_shades" />
+                        <input type="hidden" name="product_id" value="<?php echo esc_attr($selected_product_id); ?>" />
+                        <?php wp_nonce_field('tvak_toggle_product_has_shades_nonce', 'tvak_nonce'); ?>
+
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <h2 style="margin: 0;"><?php esc_html_e('Shade Mode Configuration for:', 'tvak-beauty-kit'); ?> <em><?php echo esc_html(get_the_title($selected_product_id)); ?></em></h2>
+                                <p style="margin: 5px 0 0 0; color: #666;"><?php esc_html_e('If enabled, visual color swatches will be displayed on the recommendation card in quiz results.', 'tvak-beauty-kit'); ?></p>
+                            </div>
+                            <div>
+                                <label style="font-size: 16px; font-weight: bold;">
+                                    <input type="checkbox" name="has_shades" value="1" <?php checked($has_shades); ?> onchange="this.form.submit()" style="width: 20px; height: 20px; vertical-align: middle;" />
+                                    <?php esc_html_e('Enable Product Shades / Variations', 'tvak-beauty-kit'); ?>
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div style="display: flex; gap: 20px; margin-top: 20px;">
+                    <!-- Add / Edit Shade Form -->
+                    <div style="flex: 1; background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; height: fit-content;">
+                        <h2><?php echo $edit_shade ? esc_html__('Edit Product Shade', 'tvak-beauty-kit') : esc_html__('Add New Product Shade', 'tvak-beauty-kit'); ?></h2>
+
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="tvak_save_product_shade" />
+                            <input type="hidden" name="product_id" value="<?php echo esc_attr($selected_product_id); ?>" />
+                            <?php if ($edit_shade) : ?>
+                                <input type="hidden" name="shade_id" value="<?php echo esc_attr($edit_shade['shade_id']); ?>" />
+                            <?php endif; ?>
+                            <?php wp_nonce_field('tvak_save_product_shade_nonce', 'tvak_nonce'); ?>
+
+                            <table class="form-table" style="width: 100%;">
+                                <tr>
+                                    <th scope="row"><label for="shade_name"><?php esc_html_e('Shade Name', 'tvak-beauty-kit'); ?></label></th>
+                                    <td>
+                                        <input type="text" name="shade_name" id="shade_name" value="<?php echo esc_attr($edit_shade['shade_name'] ?? ''); ?>" required placeholder="e.g. Choco Suede, Ivory Velouté, Onyx Black" class="regular-text" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><label for="shade_hex"><?php esc_html_e('Visual Color (HEX)', 'tvak-beauty-kit'); ?></label></th>
+                                    <td>
+                                        <input type="color" name="shade_hex" id="shade_hex" value="<?php echo esc_attr($edit_shade['shade_hex'] ?? '#D4AF37'); ?>" style="vertical-align: middle; height: 35px; width: 60px;" />
+                                        <input type="text" name="shade_hex_text" value="<?php echo esc_attr($edit_shade['shade_hex'] ?? '#D4AF37'); ?>" style="width: 100px; margin-left: 8px;" onchange="document.getElementById('shade_hex').value=this.value" />
+                                        <p class="description"><?php esc_html_e('Exact visual shade color rendered on recommendation card swatches.', 'tvak-beauty-kit'); ?></p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><label for="variation_id"><?php esc_html_e('WooCommerce Variation SKU', 'tvak-beauty-kit'); ?></label></th>
+                                    <td>
+                                        <select name="variation_id" id="variation_id" style="width: 100%;">
+                                            <option value=""><?php esc_html_e('-- Main Product / Unlinked --', 'tvak-beauty-kit'); ?></option>
+                                            <?php if (!empty($variations)) : ?>
+                                                <?php foreach ($variations as $v) : ?>
+                                                    <option value="<?php echo esc_attr($v['variation_id']); ?>" <?php selected($edit_shade['variation_id'] ?? 0, $v['variation_id']); ?>>
+                                                        <?php echo esc_html(implode(', ', $v['attributes'])); ?> (ID: <?php echo esc_html($v['variation_id']); ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><label for="price"><?php esc_html_e('Price Override', 'tvak-beauty-kit'); ?></label></th>
+                                    <td>
+                                        <input type="number" step="0.01" min="0" name="price" id="price" value="<?php echo esc_attr($edit_shade['price'] ?? ''); ?>" placeholder="e.g. 599.00" class="regular-text" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><label for="sort_order"><?php esc_html_e('Sort Order', 'tvak-beauty-kit'); ?></label></th>
+                                    <td>
+                                        <input type="number" name="sort_order" id="sort_order" value="<?php echo esc_attr($edit_shade['sort_order'] ?? 1); ?>" class="small-text" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e('Stock Status', 'tvak-beauty-kit'); ?></th>
+                                    <td>
+                                        <label><input type="checkbox" name="is_in_stock" value="1" <?php checked($edit_shade['is_in_stock'] ?? 1, 1); ?> /> <?php esc_html_e('In Stock', 'tvak-beauty-kit'); ?></label>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p class="submit">
+                                <input type="submit" class="button button-primary" value="<?php echo $edit_shade ? esc_attr__('Update Shade', 'tvak-beauty-kit') : esc_attr__('Add Shade', 'tvak-beauty-kit'); ?>" />
+                                <?php if ($edit_shade) : ?>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=tvak-shades&product_id=' . $selected_product_id)); ?>" class="button button-secondary"><?php esc_html_e('Cancel', 'tvak-beauty-kit'); ?></a>
+                                <?php endif; ?>
+                            </p>
+                        </form>
+                    </div>
+
+                    <!-- Configured Shades List Table -->
+                    <div style="flex: 1.5; background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px;">
+                        <h2><?php esc_html_e('Configured Shades for this Product', 'tvak-beauty-kit'); ?></h2>
+
+                        <table class="widefat striped">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e('Order', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Visual Swatch', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Shade Name', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('HEX Code', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Stock', 'tvak-beauty-kit'); ?></th>
+                                    <th><?php esc_html_e('Actions', 'tvak-beauty-kit'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($shades)) : ?>
+                                    <?php foreach ($shades as $sh) : ?>
+                                        <tr>
+                                            <td><?php echo esc_html($sh['sort_order']); ?></td>
+                                            <td>
+                                                <span style="display: inline-block; width: 28px; height: 28px; background: <?php echo esc_attr($sh['shade_hex']); ?>; border: 2px solid #D4AF37; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></span>
+                                            </td>
+                                            <td><strong><?php echo esc_html($sh['shade_name']); ?></strong></td>
+                                            <td><code><?php echo esc_html($sh['shade_hex']); ?></code></td>
+                                            <td>
+                                                <?php if ($sh['is_in_stock']) : ?>
+                                                    <span style="color: green; font-weight: bold;">✔ In Stock</span>
+                                                <?php else : ?>
+                                                    <span style="color: red; font-weight: bold;">✖ Out of Stock</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <a href="<?php echo esc_url(admin_url('admin.php?page=tvak-shades&product_id=' . $selected_product_id . '&edit_shade=' . $sh['shade_id'])); ?>" class="button button-small button-secondary"><?php esc_html_e('Edit', 'tvak-beauty-kit'); ?></a>
+                                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display: inline;">
+                                                    <input type="hidden" name="action" value="tvak_delete_product_shade" />
+                                                    <input type="hidden" name="shade_id" value="<?php echo esc_attr($sh['shade_id']); ?>" />
+                                                    <input type="hidden" name="product_id" value="<?php echo esc_attr($selected_product_id); ?>" />
+                                                    <?php wp_nonce_field('tvak_delete_product_shade_nonce', 'tvak_nonce'); ?>
+                                                    <input type="submit" class="button button-small button-link-delete" value="<?php esc_attr_e('Delete', 'tvak-beauty-kit'); ?>" onclick="return confirm('Delete this shade?');" />
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else : ?>
+                                    <tr><td colspan="6"><?php esc_html_e('No custom shades configured for this product yet.', 'tvak-beauty-kit'); ?></td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * Handle Save Product Shade Post.
+     */
+    public static function handle_save_product_shade() {
+        check_admin_referer('tvak_save_product_shade_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $product_id   = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+        $shade_id     = isset($_POST['shade_id']) ? (int) $_POST['shade_id'] : 0;
+        $shade_name   = sanitize_text_field($_POST['shade_name'] ?? '');
+        $shade_hex    = sanitize_text_field($_POST['shade_hex'] ?? ($_POST['shade_hex_text'] ?? '#D4AF37'));
+        $variation_id = !empty($_POST['variation_id']) ? (int) $_POST['variation_id'] : null;
+        $price        = isset($_POST['price']) && $_POST['price'] !== '' ? (float) $_POST['price'] : null;
+        $sort_order   = (int) ($_POST['sort_order'] ?? 1);
+        $is_in_stock  = isset($_POST['is_in_stock']) ? 1 : 0;
+
+        if ($product_id && $shade_name) {
+            Tvak_Product_Shade::save_shade([
+                'shade_id'     => $shade_id,
+                'product_id'   => $product_id,
+                'variation_id' => $variation_id,
+                'shade_name'   => $shade_name,
+                'shade_hex'    => $shade_hex,
+                'price'        => $price,
+                'is_in_stock'  => $is_in_stock,
+                'sort_order'   => $sort_order,
+            ]);
+
+            // Ensure product has shades mode is set to enabled
+            Tvak_Product_Shade::set_product_has_shades($product_id, true);
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-shades&product_id=' . $product_id . '&message=shade_saved'));
+        exit;
+    }
+
+    /**
+     * Handle Delete Product Shade Post.
+     */
+    public static function handle_delete_product_shade() {
+        check_admin_referer('tvak_delete_product_shade_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $shade_id   = isset($_POST['shade_id']) ? (int) $_POST['shade_id'] : 0;
+        $product_id = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+
+        if ($shade_id) {
+            Tvak_Product_Shade::delete_shade($shade_id);
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-shades&product_id=' . $product_id . '&message=shade_deleted'));
+        exit;
+    }
+
+    /**
+     * Handle Toggle Product Has Shades Post.
+     */
+    public static function handle_toggle_product_has_shades() {
+        check_admin_referer('tvak_toggle_product_has_shades_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $product_id = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+        $has_shades = isset($_POST['has_shades']) ? true : false;
+
+        if ($product_id) {
+            Tvak_Product_Shade::set_product_has_shades($product_id, $has_shades);
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-shades&product_id=' . $product_id . '&message=toggled'));
+        exit;
+    }
 }
+

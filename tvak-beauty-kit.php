@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '1.1.0');
-define('TVAK_DB_VERSION', '1.1.0');
+define('TVAK_VERSION', '1.8.0');
+define('TVAK_DB_VERSION', '1.8.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('TVAK_PLUGIN_FILE', __FILE__);
@@ -68,6 +68,7 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-attribute.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-rule.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-shade.php';
 
         // Load Engine Classes
         require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-user-profile.php';

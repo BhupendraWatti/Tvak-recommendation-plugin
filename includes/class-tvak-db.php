@@ -160,6 +160,24 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_logs);
 
+        // 9. Product Shades Table
+        $table_shades = $wpdb->prefix . 'tvak_product_shades';
+        $sql_shades = "CREATE TABLE {$table_shades} (
+            shade_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            product_id BIGINT UNSIGNED NOT NULL,
+            variation_id BIGINT UNSIGNED NULL,
+            shade_name VARCHAR(128) NOT NULL,
+            shade_hex VARCHAR(32) NOT NULL DEFAULT '#D4AF37',
+            price DECIMAL(10,2) NULL,
+            image_url VARCHAR(255) NULL,
+            is_in_stock TINYINT(1) NOT NULL DEFAULT 1,
+            sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY  (shade_id),
+            KEY product_id (product_id),
+            KEY variation_id (variation_id)
+        ) {$charset_collate};";
+        dbDelta($sql_shades);
+
         update_option('tvak_db_version', self::DB_VERSION);
     }
 
@@ -375,6 +393,16 @@ class Tvak_DB {
                 $wpdb->insert($table_attributes, $attr);
             }
         }
+
+        // SQL Cleanup for Product Shades (Purge duplicate rows keeping lowest shade_id)
+        $table_shades = $wpdb->prefix . 'tvak_product_shades';
+        $wpdb->query("
+            DELETE t1 FROM {$table_shades} t1
+            INNER JOIN {$table_shades} t2 
+            WHERE t1.shade_id > t2.shade_id 
+              AND t1.product_id = t2.product_id 
+              AND LOWER(TRIM(t1.shade_name)) = LOWER(TRIM(t2.shade_name))
+        ");
     }
 }
 

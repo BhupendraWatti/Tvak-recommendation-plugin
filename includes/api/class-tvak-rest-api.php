@@ -66,9 +66,9 @@ class Tvak_REST_API {
         $profile_array = $profile->to_array();
         $cache_key = 'rec_' . md5(wp_json_encode($profile_array));
 
-        // 1. Check Cache Hit
+        // 1. Check Cache Hit (Ensure cached response has new schema properties: image_url, price & has_shades)
         $cached_response = Tvak_Cache::get($cache_key);
-        if ($cached_response) {
+        if ($cached_response && !empty($cached_response['items']) && isset($cached_response['items'][0]['image_url']) && isset($cached_response['items'][0]['price']) && isset($cached_response['items'][0]['has_shades'])) {
             $cached_response['cached'] = true;
             return new WP_REST_Response($cached_response, 200);
         }
