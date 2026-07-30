@@ -146,8 +146,41 @@ class Tvak_Variant_Resolver {
             }
         }
 
-        // 1. Live WooCommerce Variable Product Auto-Discovery Pipeline
-        if (function_exists('wc_get_product')) {
+        // 1. Custom DB shades configured via Product Shades Manager (Highest priority: custom admin shades)
+        if (class_exists('Tvak_Product_Shade')) {
+            $db_shades  = Tvak_Product_Shade::get_shades_by_product($product_id);
+            $has_shades = Tvak_Product_Shade::get_product_has_shades($product_id) || !empty($db_shades);
+
+            if (!empty($db_shades)) {
+                // Filter out self-referential dummy rows where shade_name matches parent product title
+                $parent_title_lower = function_exists('wc_get_product') && wc_get_product($product_id) ? strtolower(trim(wc_get_product($product_id)->get_name())) : '';
+                
+                foreach ($db_shades as $idx => $db_s) {
+                    $s_name_lower = strtolower(trim($db_s['shade_name']));
+                    if (count($db_shades) > 1 && !empty($parent_title_lower) && $s_name_lower === $parent_title_lower) {
+                        continue; // Skip single parent-title dummy fallback when true shades exist
+                    }
+
+                    $s_var_id = !empty($db_s['variation_id']) ? (int) $db_s['variation_id'] : ($product_id * 100 + $idx + 1);
+                    $s_price  = !empty($db_s['price']) ? (float) $db_s['price'] : $price;
+                    $s_price_fmt = function_exists('wc_price') ? wc_price($s_price) : ('$' . number_format($s_price, 2));
+
+                    $all_shades[] = [
+                        'variation_id'    => $s_var_id,
+                        'shade_name'      => $db_s['shade_name'],
+                        'hex_color'       => !empty($db_s['shade_hex']) ? $db_s['shade_hex'] : self::get_shade_hex($db_s['shade_name'], $product_id, $s_var_id),
+                        'price'           => $s_price,
+                        'price_formatted' => $s_price_fmt,
+                        'image_url'       => !empty($db_s['image_url']) ? $db_s['image_url'] : $image_url,
+                        'is_in_stock'     => (bool) ($db_s['is_in_stock'] ?? 1),
+                        'is_selected'     => ($idx === 0),
+                    ];
+                }
+            }
+        }
+
+        // 2. WooCommerce Variable Product Auto-Discovery Pipeline (if no custom DB shades populated)
+        if (empty($all_shades) && function_exists('wc_get_product')) {
             $parent_obj = wc_get_product($product_id);
             if ($parent_obj && $parent_obj->is_type('variable')) {
                 $has_shades = true;
@@ -156,67 +189,31 @@ class Tvak_Variant_Resolver {
                     $child_obj = wc_get_product($child_id);
                     if ($child_obj) {
                         $s_attributes = $child_obj->get_variation_attributes();
-                        $s_name       = implode(' / ', array_filter($s_attributes)) ?: $child_obj->get_name();
-                        $s_stock      = $child_obj->is_in_stock();
-                        $s_price_raw  = $child_obj->get_price();
-                        $s_price      = ($s_price_raw !== '' && $s_price_raw !== false) ? (float) $s_price_raw : $price;
-                        $s_price_fmt  = function_exists('wc_price') ? wc_price($s_price) : ('$' . number_format($s_price, 2));
+                        $s_name       = implode(' / ', array_filter($s_attributes));
 
-                        $s_img_id = $child_obj->get_image_id() ?: $parent_obj->get_image_id();
-                        $s_img    = $s_img_id ? wp_get_attachment_image_url($s_img_id, 'medium') : $image_url;
-                        $s_hex    = self::get_shade_hex($s_name);
+                        // Only add variation if it has explicit attribute names
+                        if (!empty($s_name)) {
+                            $s_stock      = $child_obj->is_in_stock();
+                            $s_price_raw  = $child_obj->get_price();
+                            $s_price      = ($s_price_raw !== '' && $s_price_raw !== false) ? (float) $s_price_raw : $price;
+                            $s_price_fmt  = function_exists('wc_price') ? wc_price($s_price) : ('$' . number_format($s_price, 2));
 
-                        $all_shades[] = [
-                            'variation_id'    => (int) $child_id,
-                            'shade_name'      => $s_name,
-                            'hex_color'       => $s_hex,
-                            'price'           => $s_price,
-                            'price_formatted' => $s_price_fmt,
-                            'image_url'       => $s_img ?: $image_url,
-                            'is_in_stock'     => (bool) $s_stock,
-                            'is_selected'     => ($child_id == $variation_id || $idx === 0),
-                        ];
+                            $s_img_id = $child_obj->get_image_id() ?: $parent_obj->get_image_id();
+                            $s_img    = $s_img_id ? wp_get_attachment_image_url($s_img_id, 'medium') : $image_url;
+                            $s_hex    = self::get_shade_hex($s_name, $product_id, (int) $child_id);
 
-                        // Real-time auto-sync to wp_tvak_product_shades DB table to eliminate duplicate admin work
-                        if (class_exists('Tvak_Product_Shade')) {
-                            Tvak_Product_Shade::save_shade([
-                                'product_id'   => $product_id,
-                                'variation_id' => (int) $child_id,
-                                'shade_name'   => $s_name,
-                                'shade_hex'    => $s_hex,
-                                'price'        => $s_price,
-                                'image_url'    => $s_img,
-                                'is_in_stock'  => $s_stock ? 1 : 0,
-                                'sort_order'   => $idx + 1,
-                            ]);
+                            $all_shades[] = [
+                                'variation_id'    => (int) $child_id,
+                                'shade_name'      => $s_name,
+                                'hex_color'       => $s_hex,
+                                'price'           => $s_price,
+                                'price_formatted' => $s_price_fmt,
+                                'image_url'       => $s_img ?: $image_url,
+                                'is_in_stock'     => (bool) $s_stock,
+                                'is_selected'     => ($child_id == $variation_id || $idx === 0),
+                            ];
                         }
                     }
-                }
-            }
-        }
-
-        // 2. Custom DB shades configured via Product Shades Manager (if not variable in WC)
-        if (empty($all_shades) && class_exists('Tvak_Product_Shade')) {
-            $db_shades  = Tvak_Product_Shade::get_shades_by_product($product_id);
-            $has_shades = Tvak_Product_Shade::get_product_has_shades($product_id) || !empty($db_shades);
-
-            if (!empty($db_shades)) {
-                $has_shades = true;
-                foreach ($db_shades as $idx => $db_s) {
-                    $s_var_id = !empty($db_s['variation_id']) ? (int) $db_s['variation_id'] : ($product_id * 100 + $idx + 1);
-                    $s_price  = !empty($db_s['price']) ? (float) $db_s['price'] : $price;
-                    $s_price_fmt = function_exists('wc_price') ? wc_price($s_price) : ('$' . number_format($s_price, 2));
-
-                    $all_shades[] = [
-                        'variation_id'    => $s_var_id,
-                        'shade_name'      => $db_s['shade_name'],
-                        'hex_color'       => !empty($db_s['shade_hex']) ? $db_s['shade_hex'] : self::get_shade_hex($db_s['shade_name']),
-                        'price'           => $s_price,
-                        'price_formatted' => $s_price_fmt,
-                        'image_url'       => !empty($db_s['image_url']) ? $db_s['image_url'] : $image_url,
-                        'is_in_stock'     => (bool) ($db_s['is_in_stock'] ?? 1),
-                        'is_selected'     => ($idx === 0),
-                    ];
                 }
             }
         }

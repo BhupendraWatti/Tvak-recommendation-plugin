@@ -66,11 +66,27 @@ class Tvak_REST_API {
         $profile_array = $profile->to_array();
         $cache_key = 'rec_' . md5(wp_json_encode($profile_array));
 
-        // 1. Check Cache Hit (Ensure cached response has new schema properties: image_url, price & has_shades)
-        $cached_response = Tvak_Cache::get($cache_key);
-        if ($cached_response && !empty($cached_response['items']) && isset($cached_response['items'][0]['image_url']) && isset($cached_response['items'][0]['price']) && isset($cached_response['items'][0]['has_shades'])) {
-            $cached_response['cached'] = true;
-            return new WP_REST_Response($cached_response, 200);
+        // 1. Check Cache Hit (Bypass cache if nocache parameter passed or if cached item is stale)
+        $no_cache = (bool) $request->get_param('nocache');
+        if (!$no_cache) {
+            $cached_response = Tvak_Cache::get($cache_key);
+            if ($cached_response && !empty($cached_response['items'])) {
+                $first_item = $cached_response['items'][0];
+                $has_valid_schema = isset($first_item['image_url']) && isset($first_item['price']) && isset($first_item['has_shades']);
+                // Ensure cached items with has_shades=true actually contain populated all_shades array
+                $has_shades_valid = true;
+                foreach ($cached_response['items'] as $c_item) {
+                    if (!empty($c_item['has_shades']) && empty($c_item['all_shades'])) {
+                        $has_shades_valid = false;
+                        break;
+                    }
+                }
+
+                if ($has_valid_schema && $has_shades_valid) {
+                    $cached_response['cached'] = true;
+                    return new WP_REST_Response($cached_response, 200);
+                }
+            }
         }
 
         // 2. Execute Orchestrator Pipeline

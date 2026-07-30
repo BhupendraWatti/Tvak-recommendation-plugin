@@ -29,6 +29,7 @@ class Tvak_Admin {
         add_action('admin_post_tvak_save_product_shade', [__CLASS__, 'handle_save_product_shade']);
         add_action('admin_post_tvak_delete_product_shade', [__CLASS__, 'handle_delete_product_shade']);
         add_action('admin_post_tvak_toggle_product_has_shades', [__CLASS__, 'handle_toggle_product_has_shades']);
+        add_action('admin_post_tvak_save_bundle_discounts', [__CLASS__, 'handle_save_bundle_discounts']);
     }
 
     /**
@@ -88,6 +89,15 @@ class Tvak_Admin {
             'manage_options',
             'tvak-simulator',
             [__CLASS__, 'render_simulator_page']
+        );
+
+        add_submenu_page(
+            'tvak-engine',
+            __('Bundle Discount Settings', 'tvak-beauty-kit'),
+            __('Bundle Discount', 'tvak-beauty-kit'),
+            'manage_options',
+            'tvak-bundle-discount',
+            [__CLASS__, 'render_bundle_discount_page']
         );
     }
 
@@ -1196,6 +1206,218 @@ class Tvak_Admin {
         }
 
         wp_redirect(admin_url('admin.php?page=tvak-shades&product_id=' . $product_id . '&message=toggled'));
+        exit;
+    }
+
+    /**
+     * Render Bundle Discount Settings Page.
+     *
+     * Allows admin to configure tiered bundle discount thresholds without
+     * touching any code. Settings propagate live to the recommendation engine
+     * API response and the frontend kit builder UI.
+     */
+    public static function render_bundle_discount_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $discounts = get_option('tvak_bundle_discounts', [
+            'tier_1_min' => 2, 'tier_1_pct' => 10,
+            'tier_2_min' => 3, 'tier_2_pct' => 15,
+            'tier_3_min' => 5, 'tier_3_pct' => 20,
+        ]);
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('TVAK Recommendation Engine – Bundle Discount Settings', 'tvak-beauty-kit'); ?></h1>
+            <p><?php esc_html_e('Configure tiered kit bundle discounts. When a customer selects the minimum number of items, the configured discount % is automatically displayed on the kit builder UI. Changes take effect immediately — no code edit required.', 'tvak-beauty-kit'); ?></p>
+
+            <?php if (isset($_GET['message']) && $_GET['message'] === 'saved') : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php esc_html_e('Bundle discount settings saved successfully! The recommendation engine API and frontend UI are now using the updated tiers.', 'tvak-beauty-kit'); ?></p>
+                </div>
+            <?php endif; ?>
+
+            <div style="display: flex; gap: 30px; margin-top: 20px;">
+
+                <!-- Settings Form -->
+                <div style="flex: 1; background: #fff; padding: 25px; border: 1px solid #ccc; border-radius: 6px; height: fit-content;">
+                    <h2 style="margin-top: 0; border-bottom: 2px solid #D4AF37; padding-bottom: 10px;"><?php esc_html_e('Discount Tier Configuration', 'tvak-beauty-kit'); ?></h2>
+                    <p style="color: #666; font-size: 13px;"><?php esc_html_e('Set up to 3 tiers. The highest matching tier is applied. Set Discount % to 0 to disable a tier.', 'tvak-beauty-kit'); ?></p>
+
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="tvak_save_bundle_discounts" />
+                        <?php wp_nonce_field('tvak_save_bundle_discounts_nonce', 'tvak_nonce'); ?>
+
+                        <table class="form-table" style="width: 100%;">
+
+                            <!-- Tier 1 -->
+                            <tr>
+                                <td colspan="2">
+                                    <h3 style="margin: 10px 0 5px; color: #D4AF37;">✦ <?php esc_html_e('Tier 1 — Entry Bundle', 'tvak-beauty-kit'); ?></h3>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_1_min"><?php esc_html_e('Minimum Items Selected', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_1_min" id="tier_1_min" min="1" max="20"
+                                           value="<?php echo esc_attr($discounts['tier_1_min'] ?? 2); ?>" class="small-text" />
+                                    <span class="description">&nbsp;<?php esc_html_e('items or more in kit', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_1_pct"><?php esc_html_e('Discount Percentage (%)', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_1_pct" id="tier_1_pct" min="0" max="100"
+                                           value="<?php echo esc_attr($discounts['tier_1_pct'] ?? 10); ?>" class="small-text" />
+                                    <span class="description">&nbsp;% <?php esc_html_e('off subtotal. Set 0 to disable this tier.', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+
+                            <tr><td colspan="2"><hr style="border-color:#eee;" /></td></tr>
+
+                            <!-- Tier 2 -->
+                            <tr>
+                                <td colspan="2">
+                                    <h3 style="margin: 10px 0 5px; color: #D4AF37;">✦✦ <?php esc_html_e('Tier 2 — Mid Bundle', 'tvak-beauty-kit'); ?></h3>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_2_min"><?php esc_html_e('Minimum Items Selected', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_2_min" id="tier_2_min" min="1" max="20"
+                                           value="<?php echo esc_attr($discounts['tier_2_min'] ?? 3); ?>" class="small-text" />
+                                    <span class="description">&nbsp;<?php esc_html_e('items or more in kit', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_2_pct"><?php esc_html_e('Discount Percentage (%)', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_2_pct" id="tier_2_pct" min="0" max="100"
+                                           value="<?php echo esc_attr($discounts['tier_2_pct'] ?? 15); ?>" class="small-text" />
+                                    <span class="description">&nbsp;% <?php esc_html_e('off subtotal. Set 0 to disable this tier.', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+
+                            <tr><td colspan="2"><hr style="border-color:#eee;" /></td></tr>
+
+                            <!-- Tier 3 -->
+                            <tr>
+                                <td colspan="2">
+                                    <h3 style="margin: 10px 0 5px; color: #D4AF37;">✦✦✦ <?php esc_html_e('Tier 3 — Full Kit Bundle', 'tvak-beauty-kit'); ?></h3>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_3_min"><?php esc_html_e('Minimum Items Selected', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_3_min" id="tier_3_min" min="1" max="20"
+                                           value="<?php echo esc_attr($discounts['tier_3_min'] ?? 5); ?>" class="small-text" />
+                                    <span class="description">&nbsp;<?php esc_html_e('items or more in kit', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="tier_3_pct"><?php esc_html_e('Discount Percentage (%)', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" name="tier_3_pct" id="tier_3_pct" min="0" max="100"
+                                           value="<?php echo esc_attr($discounts['tier_3_pct'] ?? 20); ?>" class="small-text" />
+                                    <span class="description">&nbsp;% <?php esc_html_e('off subtotal. Set 0 to disable this tier.', 'tvak-beauty-kit'); ?></span>
+                                </td>
+                            </tr>
+
+                        </table>
+
+                        <p class="submit">
+                            <input type="submit" class="button button-primary button-large"
+                                   value="<?php esc_attr_e('Save Bundle Discount Settings', 'tvak-beauty-kit'); ?>" />
+                        </p>
+                    </form>
+                </div>
+
+                <!-- How It Works Panel -->
+                <div style="flex: 1; background: #fff; padding: 25px; border: 1px solid #ccc; border-radius: 6px; height: fit-content;">
+                    <h2 style="margin-top: 0; border-bottom: 2px solid #D4AF37; padding-bottom: 10px;"><?php esc_html_e('How Bundle Discounts Work', 'tvak-beauty-kit'); ?></h2>
+
+                    <div style="background: #f9f4e8; border-left: 4px solid #D4AF37; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                        <strong><?php esc_html_e('Live Preview — Current Tiers:', 'tvak-beauty-kit'); ?></strong>
+                        <ul style="margin: 10px 0 0 15px;">
+                            <li><?php printf(
+                                esc_html__('Select %d+ items → %d%% discount', 'tvak-beauty-kit'),
+                                $discounts['tier_1_min'] ?? 2,
+                                $discounts['tier_1_pct'] ?? 10
+                            ); ?></li>
+                            <li><?php printf(
+                                esc_html__('Select %d+ items → %d%% discount', 'tvak-beauty-kit'),
+                                $discounts['tier_2_min'] ?? 3,
+                                $discounts['tier_2_pct'] ?? 15
+                            ); ?></li>
+                            <li><?php printf(
+                                esc_html__('Select %d+ items → %d%% discount', 'tvak-beauty-kit'),
+                                $discounts['tier_3_min'] ?? 5,
+                                $discounts['tier_3_pct'] ?? 20
+                            ); ?></li>
+                        </ul>
+                    </div>
+
+                    <h3><?php esc_html_e('How the Engine Applies Discounts', 'tvak-beauty-kit'); ?></h3>
+                    <ol>
+                        <li style="margin-bottom: 8px;"><?php esc_html_e('Customer takes the quiz and receives kit recommendations.', 'tvak-beauty-kit'); ?></li>
+                        <li style="margin-bottom: 8px;"><?php esc_html_e('As they select/deselect items, the highest matching tier is applied automatically.', 'tvak-beauty-kit'); ?></li>
+                        <li style="margin-bottom: 8px;"><?php esc_html_e('The discount badge and total price update live on the frontend.', 'tvak-beauty-kit'); ?></li>
+                        <li style="margin-bottom: 8px;"><?php esc_html_e('The discounted price is shown visually. The actual WooCommerce cart price reflects the standard product price — apply a WC coupon for backend enforcement if needed.', 'tvak-beauty-kit'); ?></li>
+                    </ol>
+
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; border-radius: 4px; margin-top: 15px;">
+                        <strong><?php esc_html_e('⚠️ Note on Shades for Lipstick & BB Cream:', 'tvak-beauty-kit'); ?></strong>
+                        <p style="margin: 8px 0 0;"><?php esc_html_e('If Lipstick or BB Cream are not showing shade swatches in the quiz results, it is because these products are "Simple" products in WooCommerce (no color variations). To enable shade swatches, either:', 'tvak-beauty-kit'); ?></p>
+                        <ol style="margin: 8px 0 0 15px;">
+                            <li><?php esc_html_e('Go to WooCommerce → Products → Edit the product → Change type to "Variable" and add color variations, OR', 'tvak-beauty-kit'); ?></li>
+                            <li><?php esc_html_e('Go to TVAK Engine → Product Shades → Select the product → Enable Shades → Add shade entries manually.', 'tvak-beauty-kit'); ?></li>
+                        </ol>
+                        <p style="margin: 8px 0 0; color: #666; font-size: 12px;"><?php esc_html_e('Eyeliner shows shades automatically because it is a WooCommerce Variable product with color variations already configured.', 'tvak-beauty-kit'); ?></p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Handle Save Bundle Discount Settings POST.
+     *
+     * Validates, sanitizes, and persists tier configuration to the
+     * 'tvak_bundle_discounts' WordPress option. Also invalidates the
+     * recommendation engine response cache so changes take effect immediately.
+     */
+    public static function handle_save_bundle_discounts() {
+        check_admin_referer('tvak_save_bundle_discounts_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $tier_1_min = max(1, (int) ($_POST['tier_1_min'] ?? 2));
+        $tier_1_pct = min(100, max(0, (int) ($_POST['tier_1_pct'] ?? 10)));
+        $tier_2_min = max(1, (int) ($_POST['tier_2_min'] ?? 3));
+        $tier_2_pct = min(100, max(0, (int) ($_POST['tier_2_pct'] ?? 15)));
+        $tier_3_min = max(1, (int) ($_POST['tier_3_min'] ?? 5));
+        $tier_3_pct = min(100, max(0, (int) ($_POST['tier_3_pct'] ?? 20)));
+
+        update_option('tvak_bundle_discounts', [
+            'tier_1_min' => $tier_1_min,
+            'tier_1_pct' => $tier_1_pct,
+            'tier_2_min' => $tier_2_min,
+            'tier_2_pct' => $tier_2_pct,
+            'tier_3_min' => $tier_3_min,
+            'tier_3_pct' => $tier_3_pct,
+        ]);
+
+        // Flush recommendation cache so new tiers take effect immediately
+        if (class_exists('Tvak_Cache')) {
+            Tvak_Cache::invalidate_rules_cache();
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-bundle-discount&message=saved'));
         exit;
     }
 }

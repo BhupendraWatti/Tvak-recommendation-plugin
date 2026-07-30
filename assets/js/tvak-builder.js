@@ -323,9 +323,10 @@
 
         // Shade Swatches HTML
         var swatchesHtml = '';
-        var renderShades = (typeof item.has_shades !== 'undefined') ? item.has_shades : (Array.isArray(item.all_shades) && item.all_shades.length > 0);
+        var hasShadesArray = Array.isArray(item.all_shades) && item.all_shades.length > 0;
+        var renderShades = (typeof item.has_shades !== 'undefined') ? item.has_shades : hasShadesArray;
 
-        if (renderShades && Array.isArray(item.all_shades) && item.all_shades.length > 0) {
+        if (hasShadesArray) {
           var swatchItemsHtml = '';
           item.all_shades.forEach(function(sh, sIdx) {
             var isActive = (sh.variation_id == item.variation_id || sh.shade_name === item.shade_name);
@@ -446,20 +447,42 @@
         subtotal += parseFloat(item.price || 49.00);
       });
 
-      // Tiered Bundle Discount Calculation
+      // ── Dynamic Tiered Bundle Discount ──────────────────────────────────────
+      // Tiers are configured from WP Admin (TVAK Engine → Bundle Discount).
+      // The API response carries them in discount_thresholds so JS never needs
+      // to hardcode values again.
       var discountPct = 0;
-      if (count >= 5) {
-        discountPct = 20;
-      } else if (count >= 3) {
-        discountPct = 15;
-      } else if (count >= 2) {
-        discountPct = 10;
+      var thresholds = self.recommendationPayload.discount_thresholds || null;
+
+      if (thresholds) {
+        // New structured format: { tier_1: {min_items, pct}, tier_2: …, tier_3: … }
+        var tiers = [];
+        Object.keys(thresholds).forEach(function(key) {
+          var t = thresholds[key];
+          if (t && typeof t.min_items !== 'undefined' && typeof t.pct !== 'undefined') {
+            tiers.push({ min: parseInt(t.min_items, 10), pct: parseInt(t.pct, 10) });
+          }
+        });
+        // Sort tiers descending by minimum item count so highest discount wins first
+        tiers.sort(function(a, b) { return b.min - a.min; });
+        for (var ti = 0; ti < tiers.length; ti++) {
+          if (count >= tiers[ti].min) {
+            discountPct = tiers[ti].pct;
+            break;
+          }
+        }
+      } else {
+        // Legacy fallback (in case response format is still old flat keys)
+        if (count >= 5) { discountPct = 20; }
+        else if (count >= 3) { discountPct = 15; }
+        else if (count >= 2) { discountPct = 10; }
       }
+      // ────────────────────────────────────────────────────────────────────────
 
       var discountAmount = (subtotal * discountPct) / 100;
       var finalTotal = subtotal - discountAmount;
 
-      var currencySymbol = (tvak_vars && tvak_vars.currency_symbol) ? tvak_vars.currency_symbol : '$';
+      var currencySymbol = (tvak_vars && tvak_vars.currency_symbol) ? tvak_vars.currency_symbol : '₹';
       var fmtSubtotal = currencySymbol + subtotal.toFixed(2);
       var fmtFinal = currencySymbol + finalTotal.toFixed(2);
 

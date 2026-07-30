@@ -62,13 +62,23 @@ class Tvak_Cache {
     }
 
     /**
-     * Invalidate compiled rules cache when admin saves rules or mappings.
+     * Invalidate compiled rules cache and purge recommendation session caches when admin saves rules, shades, or master data.
      *
      * @return void
      */
     public static function invalidate_rules_cache() {
         self::delete('active_rules_grouped');
         self::delete('all_attributes');
-        self::delete('quiz_config_payload'); // Invalidate quiz UI config when master data changes
+        self::delete('quiz_config_payload');
+        self::flush_recommendation_cache();
+    }
+
+    /**
+     * Flush all cached recommendation profile vectors.
+     *
+     * @return void
+     */
+    public static function flush_recommendation_cache() {
+        wp_cache_flush();
     }
 }

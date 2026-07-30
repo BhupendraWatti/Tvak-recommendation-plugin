@@ -38,12 +38,15 @@ class Tvak_Shortcode {
         wp_enqueue_script('tvak-builder-js', TVAK_PLUGIN_URL . 'assets/js/tvak-builder.js', ['jquery'], TVAK_VERSION, true);
 
         wp_localize_script('tvak-builder-js', 'tvak_vars', [
-            'api_url'     => esc_url_raw(rest_url('tvak/v1/recommend')),
-            'cart_api'    => esc_url_raw(rest_url('tvak/v1/cart/add-kit')),
-            'attr_api'    => esc_url_raw(rest_url('tvak/v1/attributes')),
-            'ajax_url'    => esc_url_raw(admin_url('admin-ajax.php')),
-            'nonce'       => wp_create_nonce('wp_rest'),
-            'accent_color'=> '#D4AF37',
+            'api_url'         => esc_url_raw(rest_url('tvak/v1/recommend')),
+            'cart_api'        => esc_url_raw(rest_url('tvak/v1/cart/add-kit')),
+            'attr_api'        => esc_url_raw(rest_url('tvak/v1/attributes')),
+            'ajax_url'        => esc_url_raw(admin_url('admin-ajax.php')),
+            'nonce'           => wp_create_nonce('wp_rest'),
+            'accent_color'    => '#D4AF37',
+            // Live WooCommerce currency data — JS uses these for price formatting
+            'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol()) : '₹',
+            'currency_code'   => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'INR',
         ]);
 
         ob_start();

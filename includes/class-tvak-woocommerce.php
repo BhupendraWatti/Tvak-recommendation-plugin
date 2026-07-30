@@ -56,6 +56,9 @@ class Tvak_WooCommerce {
      * @return WP_REST_Response
      */
     public static function handle_rest_add_kit(WP_REST_Request $request) {
+        // Initialize WooCommerce cart for REST API context (WC does not auto-init the cart in REST)
+        self::ensure_wc_cart_initialized();
+
         $params = $request->get_json_params() ?: $request->get_params();
         $result = self::process_add_kit_to_cart($params);
 
@@ -88,6 +91,40 @@ class Tvak_WooCommerce {
 
         $result = self::process_add_kit_to_cart($params);
         wp_send_json($result, $result['success'] ? 200 : 400);
+    }
+
+    /**
+     * Ensure WooCommerce session, customer, and cart are initialized.
+     *
+     * In REST API context WooCommerce does not auto-bootstrap the cart.
+     * wc_load_cart() (WC 3.6+) handles session, customer, and cart in one call.
+     * Older-version fallback manually instantiates each object.
+     *
+     * @return void
+     */
+    public static function ensure_wc_cart_initialized(): void {
+        if (!class_exists('WooCommerce')) {
+            return;
+        }
+
+        // Primary path: wc_load_cart() is available since WC 3.6.0
+        if (!WC()->cart) {
+            if (function_exists('wc_load_cart')) {
+                wc_load_cart();
+            } else {
+                // Fallback for older WC (<3.6) — manually boot each component
+                if (!WC()->session) {
+                    WC()->session = new WC_Session_Handler();
+                    WC()->session->init();
+                }
+                if (!WC()->customer) {
+                    WC()->customer = new WC_Customer(get_current_user_id(), true);
+                }
+                if (!WC()->cart) {
+                    WC()->cart = new WC_Cart();
+                }
+            }
+        }
     }
 
     /**

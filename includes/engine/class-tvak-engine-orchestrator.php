@@ -109,6 +109,7 @@ class Tvak_Engine_Orchestrator {
             $raw_kit_items[] = [
                 'product_id'      => $pid,
                 'variation_id'    => $variant_info['variation_id'],
+                'has_shades'      => (bool) ($variant_info['has_shades'] ?? false),
                 'shade_name'      => $variant_info['shade_name'],
                 'shade_hex'       => $variant_info['shade_hex'] ?? '#D4AF37',
                 'is_in_stock'     => $variant_info['is_in_stock'],
@@ -128,28 +129,33 @@ class Tvak_Engine_Orchestrator {
         // Apply active ingredient conflict filter across kit
         $final_items = Tvak_Anti_Collision::filter_kit_conflicts($raw_kit_items);
 
-        // Compute Backend Kit Tiered Bundle Discount
+        // Compute Backend Kit Tiered Bundle Discount (admin-configurable via TVAK Engine → Bundle Discount)
+        $discount_options = get_option('tvak_bundle_discounts', [
+            'tier_1_min' => 2, 'tier_1_pct' => 10,
+            'tier_2_min' => 3, 'tier_2_pct' => 15,
+            'tier_3_min' => 5, 'tier_3_pct' => 20,
+        ]);
+
+        $t1_min = (int) ($discount_options['tier_1_min'] ?? 2);
+        $t1_pct = (int) ($discount_options['tier_1_pct'] ?? 10);
+        $t2_min = (int) ($discount_options['tier_2_min'] ?? 3);
+        $t2_pct = (int) ($discount_options['tier_2_pct'] ?? 15);
+        $t3_min = (int) ($discount_options['tier_3_min'] ?? 5);
+        $t3_pct = (int) ($discount_options['tier_3_pct'] ?? 20);
+
         $item_count = count($final_items);
-        $discount_pct = 0;
-        if ($item_count >= 5) {
-            $discount_pct = 20; // 20% off for 5+ items
-        } elseif ($item_count >= 3) {
-            $discount_pct = 15; // 15% off for 3-4 items
-        } elseif ($item_count >= 2) {
-            $discount_pct = 10; // 10% off for 2 items
-        }
 
         return [
-            'success'            => true,
-            'kit_id'             => 'KIT-' . date('Ymd') . '-' . strtoupper(substr(md5(wp_json_encode($profile->to_array())), 0, 6)),
-            'profile'            => $profile->to_array(),
-            'total'              => $item_count,
-            'discount_thresholds'=> [
-                '2_items' => 10,
-                '3_items' => 15,
-                '5_items' => 20,
+            'success'             => true,
+            'kit_id'              => 'KIT-' . date('Ymd') . '-' . strtoupper(substr(md5(wp_json_encode($profile->to_array())), 0, 6)),
+            'profile'             => $profile->to_array(),
+            'total'               => $item_count,
+            'discount_thresholds' => [
+                'tier_1' => ['min_items' => $t1_min, 'pct' => $t1_pct],
+                'tier_2' => ['min_items' => $t2_min, 'pct' => $t2_pct],
+                'tier_3' => ['min_items' => $t3_min, 'pct' => $t3_pct],
             ],
-            'items'              => $final_items,
+            'items'               => $final_items,
         ];
     }
 }
