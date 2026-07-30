@@ -81,6 +81,9 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/api/class-tvak-rest-api.php';
         require_once TVAK_PLUGIN_DIR . 'includes/class-tvak-woocommerce.php';
 
+        // Load Shortcode & Elementor Widget
+        require_once TVAK_PLUGIN_DIR . 'includes/class-tvak-shortcode.php';
+
         if (is_admin()) {
             require_once TVAK_PLUGIN_DIR . 'includes/admin/class-tvak-admin.php';
         }
@@ -93,11 +96,25 @@ final class Tvak_Beauty_Kit {
         add_action('plugins_loaded', [$this, 'on_plugins_loaded']);
         add_action('rest_api_init', ['Tvak_REST_API', 'register_routes']);
 
+        Tvak_Shortcode::init();
         Tvak_WooCommerce::init();
+
+        // Elementor Widget Registration Hook
+        add_action('elementor/widgets/register', [$this, 'register_elementor_widget']);
 
         if (is_admin()) {
             Tvak_Admin::init();
         }
+    }
+
+    /**
+     * Register Elementor Custom Widget.
+     *
+     * @param \Elementor\Widgets_Manager $widgets_manager Manager.
+     */
+    public function register_elementor_widget($widgets_manager) {
+        require_once TVAK_PLUGIN_DIR . 'includes/widgets/class-tvak-elementor-widget.php';
+        $widgets_manager->register(new Tvak_Elementor_Widget());
     }
 
     /**
