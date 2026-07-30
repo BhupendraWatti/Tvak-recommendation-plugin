@@ -72,44 +72,66 @@ class Tvak_Product_Rule {
      * @return array Grouped active rules.
      */
     public static function get_all_active_grouped_by_slot() {
+        $cache_key = 'active_rules_grouped';
+        $cached    = class_exists('Tvak_Cache') ? Tvak_Cache::get($cache_key) : false;
+        if ($cached !== false && $cached !== null) {
+            return $cached;
+        }
+
         global $wpdb;
         $rule_table = self::get_rule_table();
         $attr_table = self::get_attr_table();
 
-        $rules = $wpdb->get_results(
-            "SELECT * FROM {$rule_table} WHERE is_active = 1",
+        // Single JOIN query — eliminates N+1 pattern
+        $rows = $wpdb->get_results(
+            "SELECT r.*, a.attribute_code, a.weight, a.match_matrix
+             FROM {$rule_table} r
+             LEFT JOIN {$attr_table} a ON a.rule_id = r.rule_id
+             WHERE r.is_active = 1
+             ORDER BY r.slot_id ASC, r.rule_id ASC",
             ARRAY_A
         );
 
-        if (!$rules) {
+        if (!$rows) {
             return [];
         }
 
-        $grouped = [];
-        foreach ($rules as $rule) {
-            $slot_id = (int) $rule['slot_id'];
-            $rule_id = (int) $rule['rule_id'];
+        $rules_map = [];
+        $grouped   = [];
 
-            $attributes = $wpdb->get_results(
-                $wpdb->prepare("SELECT * FROM {$attr_table} WHERE rule_id = %d", $rule_id),
-                ARRAY_A
-            );
+        foreach ($rows as $row) {
+            $rule_id = (int) $row['rule_id'];
+            $slot_id = (int) $row['slot_id'];
 
-            $rule['attribute_rules'] = [];
-            if ($attributes) {
-                foreach ($attributes as $attr) {
-                    $attr_code = $attr['attribute_code'];
-                    $rule['attribute_rules'][$attr_code] = [
-                        'weight'       => (float) $attr['weight'],
-                        'match_matrix' => !empty($attr['match_matrix']) ? json_decode($attr['match_matrix'], true) : [],
-                    ];
-                }
+            if (!isset($rules_map[$rule_id])) {
+                $rules_map[$rule_id] = [
+                    'rule_id'        => $rule_id,
+                    'product_id'     => (int) $row['product_id'],
+                    'slot_id'        => $slot_id,
+                    'priority_boost' => (float) $row['priority_boost'],
+                    'is_active'      => (int) $row['is_active'],
+                    'attribute_rules' => [],
+                ];
             }
 
+            if (!empty($row['attribute_code'])) {
+                $rules_map[$rule_id]['attribute_rules'][$row['attribute_code']] = [
+                    'weight'       => (float) $row['weight'],
+                    'match_matrix' => !empty($row['match_matrix']) ? json_decode($row['match_matrix'], true) : [],
+                ];
+            }
+        }
+
+        foreach ($rules_map as $rule_id => $rule) {
+            $slot_id = $rule['slot_id'];
             if (!isset($grouped[$slot_id])) {
                 $grouped[$slot_id] = [];
             }
             $grouped[$slot_id][] = $rule;
+        }
+
+        if (class_exists('Tvak_Cache')) {
+            Tvak_Cache::set($cache_key, $grouped, 300);
         }
 
         return $grouped;

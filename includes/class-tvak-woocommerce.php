@@ -70,9 +70,20 @@ class Tvak_WooCommerce {
      * Handle AJAX request to batch add complete kit to WooCommerce cart.
      */
     public static function handle_ajax_add_kit() {
+        // Nonce verification for logged-in users; nopriv relies on WC session.
+        if (is_user_logged_in() && !check_ajax_referer('wp_rest', '_wpnonce', false)) {
+            wp_send_json(['success' => false, 'message' => __('Security check failed.', 'tvak-beauty-kit')], 403);
+            return;
+        }
+
         $params = $_POST;
-        if (empty($params) && !empty(file_get_contents('php://input'))) {
-            $params = json_decode(file_get_contents('php://input'), true);
+
+        // Read php://input once to avoid double-read issue
+        if (empty($params)) {
+            $raw_input = file_get_contents('php://input');
+            if (!empty($raw_input)) {
+                $params = json_decode($raw_input, true) ?: [];
+            }
         }
 
         $result = self::process_add_kit_to_cart($params);

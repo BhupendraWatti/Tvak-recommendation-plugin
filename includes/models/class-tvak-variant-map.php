@@ -70,7 +70,7 @@ class Tvak_Variant_Map {
         }
 
         $best_match_id = null;
-        $max_match_score = -1;
+        $max_match_score = 0; // minimum 1 match required to be a valid partial match
 
         foreach ($mappings as $map) {
             $mapped_vector = !empty($map['criteria_vector']) ? json_decode($map['criteria_vector'], true) : [];
@@ -85,7 +85,8 @@ class Tvak_Variant_Map {
                 }
             }
 
-            if ($matches > $max_match_score) {
+            // Only accept as a match if at least one attribute aligns
+            if ($matches > 0 && $matches > $max_match_score) {
                 $max_match_score = $matches;
                 $best_match_id   = (int) $map['variation_id'];
             }

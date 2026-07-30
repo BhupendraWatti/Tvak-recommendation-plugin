@@ -95,11 +95,13 @@ class Tvak_REST_API {
 
         $result['cached'] = false;
 
-        // 3. Store Cache (TTL: 600s = 10 mins)
-        Tvak_Cache::set($cache_key, $result, 600);
+        // 3. Log session BEFORE caching (cached hits won't re-log)
+        if (!empty($result['items'])) {
+            self::log_session($profile_array, $result);
+        }
 
-        // 4. Log Recommendation Session to DB
-        self::log_session($profile_array, $result);
+        // 4. Store Cache (TTL: 600s = 10 mins)
+        Tvak_Cache::set($cache_key, $result, 600);
 
         return new WP_REST_Response($result, 200);
     }
