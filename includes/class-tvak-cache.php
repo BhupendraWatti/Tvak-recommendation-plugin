@@ -69,5 +69,6 @@ class Tvak_Cache {
     public static function invalidate_rules_cache() {
         self::delete('active_rules_grouped');
         self::delete('all_attributes');
+        self::delete('quiz_config_payload'); // Invalidate quiz UI config when master data changes
     }
 }

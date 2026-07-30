@@ -345,15 +345,40 @@ class Tvak_Admin {
                 'is_active'      => $is_active,
             ]);
 
-            // Sync with legacy attribute table
+            // Sync legacy tvak_attribute_registry row (label + flat options_json only).
+            // We use a direct DB update instead of Tvak_Attribute::save() to avoid
+            // the delegation path that re-saves all terms with reset sequential sort_order.
             $master_attr = Tvak_Master_Data::get_attribute_by_code($attr_code, false);
             if ($master_attr) {
-                Tvak_Attribute::save([
-                    'attribute_code' => $attr_code,
-                    'label'          => $master_attr['label'],
-                    'category'       => $master_attr['category'],
-                    'options'        => $master_attr['options'],
-                ]);
+                global $wpdb;
+                $legacy_table = $wpdb->prefix . 'tvak_attribute_registry';
+                $existing_legacy_id = $wpdb->get_var(
+                    $wpdb->prepare("SELECT attribute_id FROM {$legacy_table} WHERE attribute_code = %s", $attr_code)
+                );
+                if ($existing_legacy_id) {
+                    $wpdb->update(
+                        $legacy_table,
+                        [
+                            'label'        => $master_attr['label'],
+                            'category'     => $master_attr['category'],
+                            'options_json' => wp_json_encode($master_attr['options']),
+                        ],
+                        ['attribute_id' => $existing_legacy_id],
+                        ['%s', '%s', '%s'],
+                        ['%d']
+                    );
+                } else {
+                    $wpdb->insert(
+                        $legacy_table,
+                        [
+                            'attribute_code' => $attr_code,
+                            'label'          => $master_attr['label'],
+                            'category'       => $master_attr['category'],
+                            'options_json'   => wp_json_encode($master_attr['options']),
+                        ],
+                        ['%s', '%s', '%s', '%s']
+                    );
+                }
             }
 
             Tvak_Cache::invalidate_rules_cache();

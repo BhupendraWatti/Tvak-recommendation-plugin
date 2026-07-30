@@ -18,7 +18,7 @@ class Tvak_DB {
     /**
      * Current DB Version.
      */
-    const DB_VERSION = '1.0.0';
+    const DB_VERSION = '1.1.0';
 
     /**
      * Create or update custom database tables using dbDelta.

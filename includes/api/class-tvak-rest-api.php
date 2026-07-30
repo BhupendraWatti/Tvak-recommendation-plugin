@@ -135,14 +135,11 @@ class Tvak_REST_API {
                     continue;
                 }
 
-                $heading = sprintf(__('Step %d: Select your %s', 'tvak-beauty-kit'), $step_num, $attr['label']);
-                if ($attr['attribute_code'] === 'skin_type') {
-                    $heading = sprintf(__('Step %d: What is your primary Skin Type?', 'tvak-beauty-kit'), $step_num);
-                } elseif ($attr['attribute_code'] === 'skin_tone') {
-                    $heading = sprintf(__('Step %d: Select your Skin Tone Group', 'tvak-beauty-kit'), $step_num);
-                } elseif ($attr['attribute_code'] === 'skin_concern') {
-                    $heading = sprintf(__('Step %d: What are your target Skin Concerns?', 'tvak-beauty-kit'), $step_num);
-                }
+                $heading = sprintf(
+                    __('Step %d: Select your %s', 'tvak-beauty-kit'),
+                    $step_num,
+                    $attr['label']
+                );
 
                 $steps[] = [
                     'step'           => $step_num++,

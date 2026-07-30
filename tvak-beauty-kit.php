@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '1.0.0');
-define('TVAK_DB_VERSION', '1.0.0');
+define('TVAK_VERSION', '1.1.0');
+define('TVAK_DB_VERSION', '1.1.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('TVAK_PLUGIN_FILE', __FILE__);
@@ -127,6 +127,18 @@ final class Tvak_Beauty_Kit {
         // Check if WooCommerce is active
         if (!class_exists('WooCommerce')) {
             add_action('admin_notices', [$this, 'woocommerce_missing_notice']);
+        }
+
+        // Automatic DB upgrade & seed check: run create_tables() and seed_defaults() if version changed or tables empty
+        $installed_db_version = get_option('tvak_db_version', '0.0.0');
+        global $wpdb;
+        $master_table = $wpdb->prefix . 'tvak_master_attributes';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $master_table)) === $master_table;
+        $is_empty     = $table_exists ? ( (int) $wpdb->get_var("SELECT COUNT(*) FROM {$master_table}") === 0 ) : true;
+
+        if (version_compare($installed_db_version, TVAK_DB_VERSION, '<') || !$table_exists || $is_empty) {
+            Tvak_DB::create_tables();
+            Tvak_DB::seed_defaults();
         }
     }
 
