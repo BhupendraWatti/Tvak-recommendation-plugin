@@ -185,54 +185,6 @@
       $area.html(html);
     },
 
-    bindEvents: function() {
-      var self = this;
-
-      // Option Card Selection
-      self.$container.on('click', '.tvak-option-card', function() {
-        var $card = $(this);
-        var val = $card.data('val');
-
-        if (self.currentStep === 1) {
-          self.profile.skin_type = val;
-          self.$container.find('.tvak-option-card').removeClass('selected');
-          $card.addClass('selected');
-        } else if (self.currentStep === 2) {
-          self.profile.skin_tone = val;
-          self.$container.find('.tvak-option-card').removeClass('selected');
-          $card.addClass('selected');
-        } else if (self.currentStep === 3) {
-          var idx = self.profile.skin_concern.indexOf(val);
-          if (idx === -1) {
-            self.profile.skin_concern.push(val);
-            $card.addClass('selected');
-          } else {
-            self.profile.skin_concern.splice(idx, 1);
-            $card.removeClass('selected');
-          }
-        }
-      });
-
-      // Navigation Buttons
-      self.$container.on('click', '.btn-next', function() {
-        self.renderStep(self.currentStep + 1);
-      });
-
-      self.$container.on('click', '.btn-prev', function() {
-        self.renderStep(self.currentStep - 1);
-      });
-
-      // Compute Recommendation
-      self.$container.on('click', '.btn-compute', function() {
-        self.fetchRecommendation();
-      });
-
-      // Add Complete Kit to Cart
-      self.$container.on('click', '.btn-add-kit-cart', function() {
-        self.addKitToCart();
-      });
-    },
-
     fetchRecommendation: function() {
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
@@ -273,27 +225,45 @@
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
 
-      var itemsHtml = '';
+      // Initialize all items as selected by default
       data.items.forEach(function(item) {
+        if (typeof item.selected === 'undefined') {
+          item.selected = true;
+        }
+      });
+
+      var itemsHtml = '';
+      data.items.forEach(function(item, idx) {
         var shadeBadge = item.shade_name ? `<div style="font-size:12px; color:#D4AF37; margin-bottom:8px;"><strong>Shade:</strong> ${item.shade_name}</div>` : '';
+        var isChecked = item.selected ? 'checked' : '';
+        var cardSelectedClass = item.selected ? 'selected-card' : 'unselected-card';
+
         itemsHtml += `
-          <div class="tvak-kit-item-card">
-            <div>
-              <div class="tvak-item-slot-badge">${item.slot_name}</div>
-              <h4 class="tvak-item-title">${item.title}</h4>
-              <span class="tvak-match-score">✦ ${item.score_pct}% Fit Match</span>
-              ${shadeBadge}
-              <p class="tvak-item-rationale">${item.rationale}</p>
+          <div class="tvak-kit-item-card ${cardSelectedClass}" data-idx="${idx}">
+            <div style="display:flex; align-items:flex-start; gap:12px;">
+              <div style="padding-top:4px;">
+                <input type="checkbox" class="tvak-item-toggle-chk" data-idx="${idx}" ${isChecked} style="width:20px; height:20px; cursor:pointer; accent-color:#D4AF37;" />
+              </div>
+              <div style="flex:1;">
+                <div class="tvak-item-slot-badge">${item.slot_name}</div>
+                <h4 class="tvak-item-title" style="margin:5px 0;">${item.title}</h4>
+                <span class="tvak-match-score">✦ ${item.score_pct}% Fit Match</span>
+                ${shadeBadge}
+                <p class="tvak-item-rationale" style="margin-top:8px;">${item.rationale}</p>
+              </div>
             </div>
           </div>
         `;
       });
+
+      var selectedCount = data.items.filter(function(i) { return i.selected; }).length;
 
       var html = `
         <div class="tvak-step-card">
           <div style="text-align:center; margin-bottom:25px;">
             <span class="tvak-header-badge">Kit Ref: ${data.kit_id}</span>
             <h3 class="tvak-step-heading" style="margin-top:10px;">Your Bespoke Personalized Regimen</h3>
+            <p style="color:#A0A0A8; font-size:13px; margin-top:-10px;">Select or unselect individual products below to customize your final kit</p>
           </div>
 
           <div class="tvak-results-grid">
@@ -301,10 +271,10 @@
           </div>
 
           <div class="tvak-cart-action-bar" style="margin-top:35px; text-align:center;">
-            <button class="tvak-btn tvak-btn-primary btn-add-kit-cart" style="padding:16px 40px; font-size:16px;">
-              🛍️ Add Complete Kit to Bag (${data.total} Products)
+            <button class="tvak-btn tvak-btn-primary btn-add-kit-cart" ${selectedCount === 0 ? 'disabled' : ''} style="padding:16px 40px; font-size:16px;">
+              🛍️ Add Selected Items to Bag (<span class="tvak-selected-count">${selectedCount}</span> of ${data.items.length} Products)
             </button>
-            <div id="tvak-cart-toast"></div>
+            <div id="tvak-cart-toast" style="margin-top:15px;"></div>
           </div>
         </div>
       `;
@@ -312,12 +282,98 @@
       $area.html(html);
     },
 
+    bindEvents: function() {
+      var self = this;
+
+      // Option Card Selection
+      self.$container.on('click', '.tvak-option-card', function() {
+        var $card = $(this);
+        var val = $card.data('val');
+
+        if (self.currentStep === 1) {
+          self.profile.skin_type = val;
+          self.$container.find('.tvak-option-card').removeClass('selected');
+          $card.addClass('selected');
+        } else if (self.currentStep === 2) {
+          self.profile.skin_tone = val;
+          self.$container.find('.tvak-option-card').removeClass('selected');
+          $card.addClass('selected');
+        } else if (self.currentStep === 3) {
+          var idx = self.profile.skin_concern.indexOf(val);
+          if (idx === -1) {
+            self.profile.skin_concern.push(val);
+            $card.addClass('selected');
+          } else {
+            self.profile.skin_concern.splice(idx, 1);
+            $card.removeClass('selected');
+          }
+        }
+      });
+
+      // Checkbox Toggle for Individual Kit Items
+      self.$container.on('change', '.tvak-item-toggle-chk', function(e) {
+        e.stopPropagation();
+        var idx = $(this).data('idx');
+        var isChecked = $(this).is(':checked');
+
+        if (self.recommendationPayload && self.recommendationPayload.items[idx]) {
+          self.recommendationPayload.items[idx].selected = isChecked;
+        }
+
+        var $card = $(this).closest('.tvak-kit-item-card');
+        if (isChecked) {
+          $card.removeClass('unselected-card').addClass('selected-card');
+        } else {
+          $card.removeClass('selected-card').addClass('unselected-card');
+        }
+
+        var selectedItems = self.recommendationPayload.items.filter(function(i) { return i.selected; });
+        var count = selectedItems.length;
+
+        self.$container.find('.tvak-selected-count').text(count);
+        var $btn = self.$container.find('.btn-add-kit-cart');
+        if (count === 0) {
+          $btn.prop('disabled', true).html('🛍️ Select At Least 1 Product to Add to Bag');
+        } else {
+          $btn.prop('disabled', false).html(`🛍️ Add Selected Items to Bag (<span class="tvak-selected-count">${count}</span> of ${self.recommendationPayload.items.length} Products)`);
+        }
+      });
+
+      // Navigation Buttons
+      self.$container.on('click', '.btn-next', function() {
+        self.renderStep(self.currentStep + 1);
+      });
+
+      self.$container.on('click', '.btn-prev', function() {
+        self.renderStep(self.currentStep - 1);
+      });
+
+      // Compute Recommendation
+      self.$container.on('click', '.btn-compute', function() {
+        self.fetchRecommendation();
+      });
+
+      // Add Selected Kit Items to Cart
+      self.$container.on('click', '.btn-add-kit-cart', function() {
+        self.addKitToCart();
+      });
+    },
+
     addKitToCart: function() {
       var self = this;
       var $btn = self.$container.find('.btn-add-kit-cart');
       var $toast = $('#tvak-cart-toast');
 
-      $btn.prop('disabled', true).text('Injecting Kit into Cart...');
+      var itemsToAdd = self.recommendationPayload.items.filter(function(item) {
+        return item.selected !== false;
+      });
+
+      if (itemsToAdd.length === 0) {
+        $toast.html('<div class="tvak-toast-notice" style="background:#4A1B1B; border-color:#FF6B6B;">Please select at least one product.</div>');
+        return;
+      }
+
+      $btn.prop('disabled', true).text('Injecting Selected Products into Bag...');
 
       $.ajax({
         url: tvak_vars.cart_api,
@@ -325,7 +381,7 @@
         contentType: 'application/json',
         data: JSON.stringify({
           kit_id: self.recommendationPayload.kit_id,
-          items: self.recommendationPayload.items,
+          items: itemsToAdd,
           profile: self.profile
         }),
         beforeSend: function(xhr) {
@@ -342,12 +398,12 @@
           } else {
             $toast.html(`<div class="tvak-toast-notice" style="background:#4A1B1B; border-color:#FF6B6B;">${res.message}</div>`);
           }
-          $btn.prop('disabled', false).text('🛍️ Add Complete Kit to Bag');
+          $btn.prop('disabled', false).html(`🛍️ Add Selected Items to Bag (<span class="tvak-selected-count">${itemsToAdd.length}</span> of ${self.recommendationPayload.items.length} Products)`);
         },
         error: function(err) {
           console.error(err);
           $toast.html('<div class="tvak-toast-notice" style="background:#4A1B1B; border-color:#FF6B6B;">Error adding kit to cart.</div>');
-          $btn.prop('disabled', false).text('🛍️ Add Complete Kit to Bag');
+          $btn.prop('disabled', false).html(`🛍️ Add Selected Items to Bag (<span class="tvak-selected-count">${itemsToAdd.length}</span> of ${self.recommendationPayload.items.length} Products)`);
         }
       });
     }
