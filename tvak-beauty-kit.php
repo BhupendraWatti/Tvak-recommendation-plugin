@@ -3,14 +3,14 @@
  * Plugin Name: TVAK Personalized Beauty Recommendation Engine
  * Plugin URI: https://tvak.com/personalized-beauty-kit
  * Description: Intelligent, product-centric recommendation engine for TVAK's "Build Your Personalized Beauty Kit" experience.
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: TVAK Architecture Team
  * Text Domain: tvak-beauty-kit
  * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * WC requires at least: 7.0
- * WC tested up to: 8.9
+ * WC tested up to: 10.9.4
  *
  * @package TVAK_Beauty_Kit
  */
@@ -20,12 +20,22 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '2.1.0');
+define('TVAK_VERSION', '2.1.1');
 define('TVAK_DB_VERSION', '2.1.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('TVAK_PLUGIN_FILE', __FILE__);
 define('TVAK_PLUGIN_BASENAME', plugin_basename(__FILE__));
+
+add_action('before_woocommerce_init', static function() {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+            'custom_order_tables',
+            __FILE__,
+            true
+        );
+    }
+});
 
 /**
  * Main TVAK Beauty Kit Plugin Singleton Class

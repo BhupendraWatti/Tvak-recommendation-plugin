@@ -90,9 +90,10 @@ class Tvak_Master_Data {
     }
 
     /**
-     * Retrieve only shopper-facing quiz attributes.
+     * Retrieve only customer-facing quiz profile attributes (Skin Type, Skin Tone, Skin Concerns).
+     * Filters out non-quiz catalog metadata like product-type, size, etc.
      *
-     * @param bool $active_only If true, only return active attributes and terms.
+     * @param bool $active_only Filter active attributes.
      * @return array
      */
     public static function get_quiz_attributes(bool $active_only = true): array {
@@ -105,19 +106,68 @@ class Tvak_Master_Data {
             ARRAY_A
         );
 
-        if (empty($attributes)) {
-            return [];
+        $quiz_attributes = [];
+        if (!empty($attributes)) {
+            foreach ($attributes as $attr) {
+                $full_attr = self::get_attribute_by_code($attr['attribute_code'], $active_only);
+                if ($full_attr && !empty($full_attr['terms'])) {
+                    $quiz_attributes[] = $full_attr;
+                }
+            }
         }
 
-        $quiz_attributes = [];
-        foreach ($attributes as $attr) {
-            $full_attr = self::get_attribute_by_code($attr['attribute_code'], $active_only);
-            if ($full_attr) {
-                $quiz_attributes[] = $full_attr;
+        // Fallback: if database has not flagged quiz questions yet, filter by core profile keys
+        if (empty($quiz_attributes)) {
+            $all = self::get_attributes($active_only);
+            $seen_labels = [];
+            foreach ($all as $attr) {
+                $code = strtolower(trim($attr['attribute_code']));
+                $label_clean = strtolower(trim($attr['label']));
+                $is_quiz = !empty($attr['is_quiz_question'])
+                    || in_array($code, ['skin_type', 'skin_tone', 'skin_concern', 'skin_concerns'], true)
+                    || in_array($label_clean, ['skin type', 'skin tone', 'skin concern', 'skin concerns'], true);
+
+                if ($is_quiz && !in_array($label_clean, $seen_labels, true)) {
+                    $seen_labels[]     = $label_clean;
+                    $quiz_attributes[] = $attr;
+                }
             }
         }
 
         return $quiz_attributes;
+    }
+
+    /**
+     * Retrieve clean, sufficient attributes for Variant Matrix shade mapping.
+     * Filters out redundant WooCommerce catalog clutter (product-type, size, duplicate keys).
+     *
+     * @param bool $active_only Filter active attributes.
+     * @return array
+     */
+    public static function get_matrix_attributes(bool $active_only = true): array {
+        $all = self::get_attributes($active_only);
+        $matrix_attrs = [];
+        $seen_labels  = [];
+
+        // Exclude non-matrix catalog noise
+        $blacklisted = ['product-type', 'product_type', 'size', 'shipping_class', 'post_tag'];
+
+        foreach ($all as $attr) {
+            $code = strtolower(trim($attr['attribute_code']));
+            $label_clean = strtolower(trim($attr['label']));
+
+            if (in_array($code, $blacklisted, true) || in_array($label_clean, $blacklisted, true)) {
+                continue;
+            }
+
+            // Exclude duplicate attribute labels
+            if (!in_array($label_clean, $seen_labels, true)) {
+                $seen_labels[]   = $label_clean;
+                $matrix_attrs[]  = $attr;
+            }
+        }
+
+        return $matrix_attrs;
     }
 
     /**

@@ -111,6 +111,96 @@ class Tvak_Admin {
         }
 
         $attributes = Tvak_Master_Data::get_attributes(false);
+        $quiz_attributes = [];
+        $catalog_attributes = [];
+
+        foreach ($attributes as $attr) {
+            if (!empty($attr['is_quiz_question'])) {
+                $quiz_attributes[] = $attr;
+            } else {
+                $catalog_attributes[] = $attr;
+            }
+        }
+
+        $render_attribute_cards = static function(array $section_attributes, bool $is_catalog_reference = false) {
+            foreach ($section_attributes as $attr) :
+                ?>
+                <div style="background: <?php echo $is_catalog_reference ? '#f8fafc' : '#f9f9f9'; ?>; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid <?php echo $is_catalog_reference ? '#94a3b8' : '#D4AF37'; ?>; padding-bottom: 8px; margin-bottom: 12px; gap: 12px;">
+                        <div>
+                            <h3 style="margin: 0; display: inline-block;"><?php echo esc_html($attr['label']); ?></h3>
+                            <code style="margin-left: 8px;">code: <?php echo esc_html($attr['attribute_code']); ?></code>
+                        </div>
+                        <span class="badge" style="background: <?php echo $is_catalog_reference ? '#64748b' : '#2271b1'; ?>; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 11px; white-space: nowrap;">
+                            <?php echo $is_catalog_reference ? esc_html__('CATALOG REFERENCE', 'tvak-beauty-kit') : esc_html__('QUIZ QUESTION', 'tvak-beauty-kit'); ?>
+                        </span>
+                    </div>
+
+                    <?php if ($is_catalog_reference) : ?>
+                        <p class="description" style="margin-top: 0;"><?php esc_html_e('Imported from WooCommerce for matching/reference. Edit these values in WooCommerce, then run catalog sync.', 'tvak-beauty-kit'); ?></p>
+                    <?php endif; ?>
+
+                    <table class="widefat striped">
+                        <thead>
+                            <tr>
+                                <th><?php esc_html_e('Order', 'tvak-beauty-kit'); ?></th>
+                                <th><?php esc_html_e('Slug', 'tvak-beauty-kit'); ?></th>
+                                <th><?php esc_html_e('Label', 'tvak-beauty-kit'); ?></th>
+                                <th><?php esc_html_e('Swatch', 'tvak-beauty-kit'); ?></th>
+                                <th><?php esc_html_e('Status', 'tvak-beauty-kit'); ?></th>
+                                <th><?php esc_html_e('Actions', 'tvak-beauty-kit'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($attr['terms'])) : ?>
+                                <?php foreach ($attr['terms'] as $t) : ?>
+                                    <tr>
+                                        <td><?php echo esc_html($t['sort_order']); ?></td>
+                                        <td><code><?php echo esc_html($t['term_slug']); ?></code></td>
+                                        <td>
+                                            <strong><?php echo esc_html($t['label']); ?></strong>
+                                            <?php if (!empty($t['description'])) : ?>
+                                                <br /><small style="color: #666;"><?php echo esc_html($t['description']); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($t['swatch_color'])) : ?>
+                                                <span style="display: inline-block; width: 20px; height: 20px; background: <?php echo esc_attr($t['swatch_color']); ?>; border: 1px solid #ccc; border-radius: 50%; vertical-align: middle;"></span>
+                                            <?php else : ?>
+                                                <span style="color: #bbb;">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($t['is_active']) : ?>
+                                                <span style="color: green; font-weight: bold;"><?php esc_html_e('Active', 'tvak-beauty-kit'); ?></span>
+                                            <?php else : ?>
+                                                <span style="color: red;"><?php esc_html_e('Inactive', 'tvak-beauty-kit'); ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($is_catalog_reference) : ?>
+                                                <span style="color: #64748b;"><?php esc_html_e('Read-only', 'tvak-beauty-kit'); ?></span>
+                                            <?php else : ?>
+                                                <a href="<?php echo esc_url(admin_url('admin.php?page=tvak-master-data&edit_term=' . $t['term_id'])); ?>" class="button button-small button-secondary"><?php esc_html_e('Edit', 'tvak-beauty-kit'); ?></a>
+                                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display: inline;">
+                                                    <input type="hidden" name="action" value="tvak_delete_master_term" />
+                                                    <input type="hidden" name="term_id" value="<?php echo esc_attr($t['term_id']); ?>" />
+                                                    <?php wp_nonce_field('tvak_delete_master_term_nonce', 'tvak_nonce'); ?>
+                                                    <input type="submit" class="button button-small button-link-delete" value="<?php esc_attr_e('Delete', 'tvak-beauty-kit'); ?>" onclick="return confirm('Delete this master term?');" />
+                                                </form>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else : ?>
+                                <tr><td colspan="6"><?php esc_html_e('No terms defined for this attribute group yet.', 'tvak-beauty-kit'); ?></td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php
+            endforeach;
+        };
         $edit_term_id = isset($_GET['edit_term']) ? (int) $_GET['edit_term'] : 0;
         $edit_term = null;
 
@@ -120,6 +210,14 @@ class Tvak_Admin {
                 $wpdb->prepare("SELECT * FROM {$wpdb->prefix}tvak_master_terms WHERE term_id = %d", $edit_term_id),
                 ARRAY_A
             );
+        }
+
+        $term_form_attributes = $quiz_attributes ?: $attributes;
+        if ($edit_term && !empty($edit_term['attribute_code'])) {
+            $form_codes = array_column($term_form_attributes, 'attribute_code');
+            if (!in_array($edit_term['attribute_code'], $form_codes, true)) {
+                $term_form_attributes = $attributes;
+            }
         }
 
         ?>
@@ -155,7 +253,7 @@ class Tvak_Admin {
                                         <th scope="row"><label for="attribute_code"><?php esc_html_e('Target Master Attribute', 'tvak-beauty-kit'); ?></label></th>
                                         <td>
                                             <select name="attribute_code" id="attribute_code" required style="width: 100%;">
-                                                <?php foreach ($attributes as $attr) : ?>
+                                                <?php foreach ($term_form_attributes as $attr) : ?>
                                                     <option value="<?php echo esc_attr($attr['attribute_code']); ?>" <?php selected($edit_term['attribute_code'] ?? '', $attr['attribute_code']); ?>>
                                                         <?php echo esc_html($attr['label']); ?> (<code><?php echo esc_html($attr['attribute_code']); ?></code>)
                                                     </option>
@@ -245,9 +343,10 @@ class Tvak_Admin {
 
                         <!-- Right Column: Registered Master Data List -->
                         <div style="flex: 1.5; background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; min-width: 320px;">
-                            <h2><?php esc_html_e('Registered Master Attributes & Option Values', 'tvak-beauty-kit'); ?></h2>
+                            <h2><?php esc_html_e('Quiz Profile Attributes', 'tvak-beauty-kit'); ?></h2>
+                            <p class="description"><?php esc_html_e('These attributes drive the shopper-facing quiz and recommendation profile.', 'tvak-beauty-kit'); ?></p>
 
-                            <?php foreach ($attributes as $attr) : ?>
+                            <?php foreach ($quiz_attributes as $attr) : ?>
                                 <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #D4AF37; padding-bottom: 8px; margin-bottom: 12px;">
                                         <div>
@@ -314,6 +413,27 @@ class Tvak_Admin {
                                     </table>
                                 </div>
                             <?php endforeach; ?>
+
+                            <?php if (empty($quiz_attributes)) : ?>
+                                <div class="notice notice-warning inline"><p><?php esc_html_e('No quiz profile attributes are currently flagged. Create or flag a master attribute to restore the frontend quiz.', 'tvak-beauty-kit'); ?></p></div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($catalog_attributes)) : ?>
+                                <details style="margin-top: 24px;">
+                                    <summary style="cursor: pointer; font-weight: 600; font-size: 14px;">
+                                        <?php
+                                        printf(
+                                            esc_html__('WooCommerce Catalog Reference Attributes (%d)', 'tvak-beauty-kit'),
+                                            count($catalog_attributes)
+                                        );
+                                        ?>
+                                    </summary>
+                                    <p class="description" style="margin: 10px 0 16px;">
+                                        <?php esc_html_e('Catalog attributes are kept for matching and diagnostics, but they stay read-only here so WooCommerce remains the source of truth.', 'tvak-beauty-kit'); ?>
+                                    </p>
+                                    <?php $render_attribute_cards($catalog_attributes, true); ?>
+                                </details>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -743,7 +863,7 @@ class Tvak_Admin {
         }
 
         $existing_mappings = $selected_product_id ? Tvak_Variant_Map::get_mappings_for_product($selected_product_id) : [];
-        $attributes        = Tvak_Master_Data::get_attributes(true);
+        $attributes        = Tvak_Master_Data::get_matrix_attributes(true);
 
         ?>
         <div class="wrap">
@@ -924,7 +1044,7 @@ class Tvak_Admin {
             return;
         }
 
-        $attributes = Tvak_Master_Data::get_attributes(true);
+        $attributes = Tvak_Master_Data::get_quiz_attributes(true);
         $simulation_result = null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tvak_simulate_nonce'])) {
