@@ -18,10 +18,9 @@ require_once __DIR__ . '/interface-tvak-evaluator.php';
 class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
 
     /**
-     * Default match score applied when a user attribute value is not present
-     * in the product's match_matrix. A missing key means "compatible but not
-     * optimised" (neutral), NOT "contra-indicated" (0.0).
-     * Admins set explicit 0.0 in the matrix to hard-exclude a product.
+     * Fallback match score applied when a user attribute value is not present
+     * in the product's match_matrix. Runtime scoring reads the admin option,
+     * using this constant only as the default option fallback.
      */
     const DEFAULT_ABSENT_MATCH = 0.20;
 
@@ -35,6 +34,7 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
     public function evaluate(Tvak_User_Profile $profile, array $rule_data): float {
         $boost            = (float) ($rule_data['priority_boost'] ?? 0.0);
         $attribute_rules  = $rule_data['attribute_rules'] ?? [];
+        $absent_score     = self::get_default_absent_match();
 
         if (empty($attribute_rules)) {
             return min(1.0, max(0.0, $boost));
@@ -60,12 +60,12 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
                     // more concerns receive proportionally stronger match signals
                     // than single-concern customers. A matrix key set to 0.0
                     // explicitly means "contra-indicated"; absent key uses the
-                    // neutral DEFAULT_ABSENT_MATCH baseline.
+                    // neutral admin-configured absent-match baseline.
                     $scores = [];
                     foreach ($user_val as $val_item) {
                         $scores[] = isset($matrix[$val_item])
                             ? (float) $matrix[$val_item]
-                            : self::DEFAULT_ABSENT_MATCH;
+                            : $absent_score;
                     }
                     $match_score = array_sum($scores) / count($scores);
                 }
@@ -75,7 +75,7 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
                 // Single-value attribute: use explicit matrix value or neutral baseline
                 $match_score = isset($matrix[$user_val])
                     ? (float) $matrix[$user_val]
-                    : self::DEFAULT_ABSENT_MATCH;
+                    : $absent_score;
             }
             // Null/empty user_val (user skipped the step) → match_score stays 0.0
 
@@ -93,6 +93,14 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
         return round($final_score, 4);
     }
 
+    /**
+     * Get the admin-configured match score for absent matrix keys.
+     *
+     * @return float
+     */
+    public static function get_default_absent_match(): float {
+        return min(1.0, max(0.0, (float) get_option('tvak_default_absent_match', self::DEFAULT_ABSENT_MATCH)));
+    }
 
     /**
      * Generate human-readable rationale explanation for product recommendation.

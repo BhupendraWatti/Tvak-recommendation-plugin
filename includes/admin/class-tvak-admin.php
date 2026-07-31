@@ -580,7 +580,8 @@ class Tvak_Admin {
 
         global $wpdb;
         $slots = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}tvak_kit_slots ORDER BY sort_order ASC", ARRAY_A);
-        $attributes = Tvak_Master_Data::get_attributes(true);
+        $attributes = Tvak_Master_Data::get_quiz_attributes(true);
+        $global_min_score_threshold = min(1.0, max(0.0, (float) get_option('tvak_global_min_score_threshold', 0.20)));
 
         $wc_products = get_posts([
             'post_type'      => 'product',
@@ -677,9 +678,14 @@ class Tvak_Admin {
                                     <tr>
                                         <th scope="row"><label for="min_score_threshold"><?php esc_html_e('Minimum Score Threshold', 'tvak-beauty-kit'); ?></label></th>
                                         <td>
-                                            <input type="number" step="0.05" min="0" max="1" name="min_score_threshold" id="min_score_threshold" value="<?php echo esc_attr($existing_rule['min_score_threshold'] ?? ''); ?>" class="small-text" placeholder="0.20" />
+                                            <input type="number" step="0.05" min="0" max="1" name="min_score_threshold" id="min_score_threshold" value="<?php echo esc_attr($existing_rule['min_score_threshold'] ?? ''); ?>" class="small-text" placeholder="<?php echo esc_attr(number_format($global_min_score_threshold, 2)); ?>" />
                                             <p class="description">
-                                                <?php esc_html_e('Product-specific minimum fit score required to include this item in a kit (overrides global 0.20). Leave blank to use global default.', 'tvak-beauty-kit'); ?>
+                                                <?php
+                                                printf(
+                                                    esc_html__('Product-specific minimum fit score required to include this item in a kit (overrides global %.2f). Leave blank to use global default.', 'tvak-beauty-kit'),
+                                                    $global_min_score_threshold
+                                                );
+                                                ?>
                                                 <br /><strong style="color:#c0392b;"><?php esc_html_e('Clinical tip: Set to 0.50+ for formulas contra-indicated for certain skin types (e.g. mattifying setting spray should not appear for Dry skin profiles).', 'tvak-beauty-kit'); ?></strong>
                                             </p>
                                         </td>
@@ -1531,6 +1537,8 @@ class Tvak_Admin {
             'tier_2_min' => 3, 'tier_2_pct' => 15,
             'tier_3_min' => 5, 'tier_3_pct' => 20,
         ]);
+        $global_min_score_threshold = min(1.0, max(0.0, (float) get_option('tvak_global_min_score_threshold', 0.20)));
+        $default_absent_match       = min(1.0, max(0.0, (float) get_option('tvak_default_absent_match', 0.20)));
 
         ?>
         <div class="wrap">
@@ -1630,6 +1638,31 @@ class Tvak_Admin {
                                         </td>
                                     </tr>
 
+                                    <tr><td colspan="2"><hr style="border-color:#eee;" /></td></tr>
+
+                                    <tr>
+                                        <td colspan="2">
+                                            <h3 style="margin: 10px 0 5px; color: #D4AF37;"><?php esc_html_e('Engine Scoring Defaults', 'tvak-beauty-kit'); ?></h3>
+                                            <p class="description"><?php esc_html_e('Global defaults used by the recommendation engine when a product rule does not override them.', 'tvak-beauty-kit'); ?></p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><label for="tvak_global_min_score_threshold"><?php esc_html_e('Global Minimum Score Threshold', 'tvak-beauty-kit'); ?></label></th>
+                                        <td>
+                                            <input type="number" step="0.05" min="0" max="1" name="tvak_global_min_score_threshold" id="tvak_global_min_score_threshold"
+                                                   value="<?php echo esc_attr(number_format($global_min_score_threshold, 2)); ?>" class="small-text" />
+                                            <span class="description">&nbsp;<?php esc_html_e('Fallback minimum fit score for product rules without their own threshold.', 'tvak-beauty-kit'); ?></span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><label for="tvak_default_absent_match"><?php esc_html_e('Absent Match Baseline', 'tvak-beauty-kit'); ?></label></th>
+                                        <td>
+                                            <input type="number" step="0.05" min="0" max="1" name="tvak_default_absent_match" id="tvak_default_absent_match"
+                                                   value="<?php echo esc_attr(number_format($default_absent_match, 2)); ?>" class="small-text" />
+                                            <span class="description">&nbsp;<?php esc_html_e('Score used when a user quiz value is absent from a product match matrix.', 'tvak-beauty-kit'); ?></span>
+                                        </td>
+                                    </tr>
+
                                 </table>
 
                                 <p class="submit">
@@ -1703,6 +1736,8 @@ class Tvak_Admin {
         $tier_2_pct = min(100, max(0, (int) ($_POST['tier_2_pct'] ?? 15)));
         $tier_3_min = max(1, (int) ($_POST['tier_3_min'] ?? 5));
         $tier_3_pct = min(100, max(0, (int) ($_POST['tier_3_pct'] ?? 20)));
+        $global_min_score_threshold = min(1.0, max(0.0, (float) ($_POST['tvak_global_min_score_threshold'] ?? 0.20)));
+        $default_absent_match       = min(1.0, max(0.0, (float) ($_POST['tvak_default_absent_match'] ?? 0.20)));
 
         update_option('tvak_bundle_discounts', [
             'tier_1_min' => $tier_1_min,
@@ -1712,6 +1747,8 @@ class Tvak_Admin {
             'tier_3_min' => $tier_3_min,
             'tier_3_pct' => $tier_3_pct,
         ]);
+        update_option('tvak_global_min_score_threshold', $global_min_score_threshold);
+        update_option('tvak_default_absent_match', $default_absent_match);
 
         // Flush recommendation cache so new tiers take effect immediately
         if (class_exists('Tvak_Cache')) {
@@ -1935,6 +1972,16 @@ class Tvak_Admin {
                     ],
                     [
                         'num'   => '4',
+                        'title' => __('Global Minimum Score Threshold', 'tvak-beauty-kit'),
+                        'text'  => __('Set the fallback minimum fit score used by Product Rules that do not define a product-specific threshold.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '5',
+                        'title' => __('Absent Match Baseline', 'tvak-beauty-kit'),
+                        'text'  => __('Set the baseline score used when a quiz value is missing from a product match matrix.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '6',
                         'title' => __('Live Customer Cart Savings', 'tvak-beauty-kit'),
                         'text'  => __('As customers add or remove kit items in the quiz, discount badges update live on screen to highlight their savings.', 'tvak-beauty-kit'),
                     ],

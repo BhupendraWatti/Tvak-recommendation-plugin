@@ -160,7 +160,7 @@ class Tvak_Product_Rule {
             $wpdb->prepare("SELECT rule_id FROM {$rule_table} WHERE product_id = %d", $product_id)
         );
 
-        // Resolve min_score_threshold — null means use global 0.20 default; any numeric value is product-specific
+        // Resolve min_score_threshold: null means use the admin-configured global default; any numeric value is product-specific.
         $resolved_threshold = ($min_score_threshold !== null && $min_score_threshold !== '') ? (float) $min_score_threshold : null;
 
         if ($existing_rule_id) {

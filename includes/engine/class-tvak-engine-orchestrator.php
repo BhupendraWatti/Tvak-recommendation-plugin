@@ -62,6 +62,7 @@ class Tvak_Engine_Orchestrator {
         }
 
         $raw_kit_items = [];
+        $global_min_threshold = min(1.0, max(0.0, (float) get_option('tvak_global_min_score_threshold', 0.20)));
 
         foreach ($grouped_rules as $slot_id => $rules) {
             $slot_meta   = $slots_by_id[$slot_id] ?? ['slot_code' => 'slot_' . $slot_id, 'slot_name' => 'Category Slot ' . $slot_id];
@@ -77,10 +78,10 @@ class Tvak_Engine_Orchestrator {
 
                 $score = $this->evaluator->evaluate($profile, $rule);
 
-                // Exclude items below per-rule minimum threshold (falls back to global 0.20)
+                // Exclude items below per-rule minimum threshold or the global admin default.
                 $min_threshold = isset($rule['min_score_threshold']) && $rule['min_score_threshold'] !== null
                     ? (float) $rule['min_score_threshold']
-                    : 0.20;
+                    : $global_min_threshold;
                 if ($score < $min_threshold) {
                     continue;
                 }

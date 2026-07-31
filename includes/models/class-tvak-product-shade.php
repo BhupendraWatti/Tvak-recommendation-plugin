@@ -168,8 +168,8 @@ class Tvak_Product_Shade {
 
         $deleted = (bool) $wpdb->delete($table, ['shade_id' => $shade_id], ['%d']);
 
-        if ($deleted && $delete_wc_variation && !empty($shade['variation_id']) && function_exists('wp_trash_post')) {
-            wp_trash_post((int) $shade['variation_id']);
+        if ($deleted && $delete_wc_variation && !empty($shade['variation_id']) && function_exists('wp_delete_post')) {
+            wp_delete_post((int) $shade['variation_id'], true);
         }
 
         return $deleted;

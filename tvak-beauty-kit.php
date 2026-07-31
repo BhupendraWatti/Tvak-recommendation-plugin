@@ -3,7 +3,7 @@
  * Plugin Name: TVAK Personalized Beauty Recommendation Engine
  * Plugin URI: https://tvak.com/personalized-beauty-kit
  * Description: Intelligent, product-centric recommendation engine for TVAK's "Build Your Personalized Beauty Kit" experience.
- * Version: 2.1.1
+ * Version: 2.1.2
  * Author: TVAK Architecture Team
  * Text Domain: tvak-beauty-kit
  * Domain Path: /languages
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '2.1.1');
+define('TVAK_VERSION', '2.1.2');
 define('TVAK_DB_VERSION', '2.1.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
