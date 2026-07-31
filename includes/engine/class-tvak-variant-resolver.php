@@ -79,6 +79,12 @@ class Tvak_Variant_Resolver {
                             }
                         }
                     }
+
+                    $parent_id  = $product_id ?: (int) $wc_var->get_parent_id();
+                    $parent_hex = Tvak_Shade_Sync::get_parent_product_swatch_color($parent_id, $shade_name, array_filter(array_values($v_attrs)));
+                    if (!empty($parent_hex)) {
+                        return $parent_hex;
+                    }
                 }
             }
         }

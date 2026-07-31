@@ -1201,6 +1201,13 @@ class Tvak_Admin {
                                             </td>
                                         </tr>
                                         <tr>
+                                            <th scope="row"><label for="image_url"><?php esc_html_e('Image URL', 'tvak-beauty-kit'); ?></label></th>
+                                            <td>
+                                                <input type="url" name="image_url" id="image_url" value="<?php echo esc_attr($edit_shade['image_url'] ?? ''); ?>" placeholder="https://example.com/shade.jpg" class="regular-text" />
+                                                <p class="description"><?php esc_html_e('If this URL points to a WordPress Media Library image, the linked WooCommerce variation thumbnail is updated too.', 'tvak-beauty-kit'); ?></p>
+                                            </td>
+                                        </tr>
+                                        <tr>
                                             <th scope="row"><label for="sort_order"><?php esc_html_e('Sort Order', 'tvak-beauty-kit'); ?></label></th>
                                             <td>
                                                 <input type="number" name="sort_order" id="sort_order" value="<?php echo esc_attr($edit_shade['sort_order'] ?? 1); ?>" class="small-text" />
@@ -1262,6 +1269,12 @@ class Tvak_Admin {
                                                             <input type="hidden" name="shade_id" value="<?php echo esc_attr($sh['shade_id']); ?>" />
                                                             <input type="hidden" name="product_id" value="<?php echo esc_attr($selected_product_id); ?>" />
                                                             <?php wp_nonce_field('tvak_delete_product_shade_nonce', 'tvak_nonce'); ?>
+                                                            <?php if (!empty($sh['variation_id'])) : ?>
+                                                                <label style="display: inline-block; margin-left: 6px;">
+                                                                    <input type="checkbox" name="delete_wc_variation" value="1" />
+                                                                    <?php esc_html_e('Also delete WC variation', 'tvak-beauty-kit'); ?>
+                                                                </label>
+                                                            <?php endif; ?>
                                                             <input type="submit" class="button button-small button-link-delete" value="<?php esc_attr_e('Delete', 'tvak-beauty-kit'); ?>" onclick="return confirm('Delete this shade?');" />
                                                         </form>
                                                     </td>
@@ -1301,6 +1314,7 @@ class Tvak_Admin {
         $shade_hex    = sanitize_text_field($_POST['shade_hex'] ?? ($_POST['shade_hex_text'] ?? '#D4AF37'));
         $variation_id = !empty($_POST['variation_id']) ? (int) $_POST['variation_id'] : null;
         $price        = isset($_POST['price']) && $_POST['price'] !== '' ? (float) $_POST['price'] : null;
+        $image_url    = !empty($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : null;
         $sort_order   = (int) ($_POST['sort_order'] ?? 1);
         $is_in_stock  = isset($_POST['is_in_stock']) ? 1 : 0;
 
@@ -1312,6 +1326,7 @@ class Tvak_Admin {
                 'shade_name'   => $shade_name,
                 'shade_hex'    => $shade_hex,
                 'price'        => $price,
+                'image_url'    => $image_url,
                 'is_in_stock'  => $is_in_stock,
                 'sort_order'   => $sort_order,
             ]);
@@ -1337,9 +1352,10 @@ class Tvak_Admin {
 
         $shade_id   = isset($_POST['shade_id']) ? (int) $_POST['shade_id'] : 0;
         $product_id = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+        $delete_wc_variation = !empty($_POST['delete_wc_variation']);
 
         if ($shade_id) {
-            Tvak_Product_Shade::delete_shade($shade_id);
+            Tvak_Product_Shade::delete_shade($shade_id, $delete_wc_variation);
             Tvak_Cache::invalidate_rules_cache();
         }
 

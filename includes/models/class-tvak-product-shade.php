@@ -77,7 +77,8 @@ class Tvak_Product_Shade {
         $product_id   = (int) ($data['product_id'] ?? 0);
         $variation_id = !empty($data['variation_id']) ? (int) $data['variation_id'] : null;
         $shade_name   = sanitize_text_field($data['shade_name'] ?? '');
-        $shade_hex    = sanitize_text_field($data['shade_hex'] ?? '#D4AF37');
+        $default_hex  = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::get_default_hex() : '#D4AF37';
+        $shade_hex    = sanitize_text_field($data['shade_hex'] ?? $default_hex);
         $price        = isset($data['price']) && $data['price'] !== '' ? (float) $data['price'] : null;
         $image_url    = !empty($data['image_url']) ? esc_url_raw($data['image_url']) : null;
         $is_in_stock  = isset($data['is_in_stock']) ? (int) $data['is_in_stock'] : 1;
@@ -95,7 +96,9 @@ class Tvak_Product_Shade {
                 'shade_name'   => $shade_name,
                 'shade_hex'    => $shade_hex,
                 'price'        => $price,
+                'image_url'    => $image_url,
                 'is_in_stock'  => $is_in_stock,
+                'sort_order'   => $sort_order,
             ]);
             if ($synced_var_id && !$variation_id) {
                 $variation_id = $synced_var_id;
@@ -155,10 +158,21 @@ class Tvak_Product_Shade {
      * @param int $shade_id Shade ID.
      * @return bool
      */
-    public static function delete_shade(int $shade_id): bool {
+    public static function delete_shade(int $shade_id, bool $delete_wc_variation = false): bool {
         global $wpdb;
         $table = self::get_table_name();
-        return (bool) $wpdb->delete($table, ['shade_id' => $shade_id], ['%d']);
+        $shade = $wpdb->get_row(
+            $wpdb->prepare("SELECT variation_id FROM {$table} WHERE shade_id = %d", $shade_id),
+            ARRAY_A
+        );
+
+        $deleted = (bool) $wpdb->delete($table, ['shade_id' => $shade_id], ['%d']);
+
+        if ($deleted && $delete_wc_variation && !empty($shade['variation_id']) && function_exists('wp_trash_post')) {
+            wp_trash_post((int) $shade['variation_id']);
+        }
+
+        return $deleted;
     }
 
     /**
