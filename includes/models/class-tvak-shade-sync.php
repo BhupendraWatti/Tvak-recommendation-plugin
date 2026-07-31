@@ -7,7 +7,7 @@
  * (wp_tvak_product_shades).
  *
  * @package TVAK_Beauty_Kit
- * @version 1.3.0
+ * @version 1.4.0
  */
 
 if (!defined('ABSPATH')) {
@@ -36,10 +36,75 @@ class Tvak_Shade_Sync {
     }
 
     /**
-     * Handle WC Variation Save action.
+     * Resolve the default hex colour from WP Options — no hardcoded brand value.
+     *
+     * Priority order:
+     *  1. wp_option tvak_default_shade_hex (admin-editable from TVAK Settings)
+     *  2. shade_hex column DEFAULT from wp_tvak_product_shades (read once, statically cached)
+     *  3. Emergency fallback '#D4AF37' only if DB cannot be read at all
+     *
+     * @return string Valid 3-6 char hex string (with leading #).
+     */
+    public static function get_default_hex(): string {
+        $option = get_option('tvak_default_shade_hex', '');
+        if (!empty($option) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', $option)) {
+            return $option;
+        }
+
+        // DB column default — read once and cache
+        static $db_default = null;
+        if ($db_default === null) {
+            global $wpdb;
+            $col = $wpdb->get_row("SHOW COLUMNS FROM {$wpdb->prefix}tvak_product_shades LIKE 'shade_hex'");
+            $db_default = ($col && !empty($col->Default)) ? $col->Default : '#D4AF37';
+        }
+
+        return $db_default;
+    }
+
+    /**
+     * Resolve which postmeta attribute keys a WC product variation uses.
+     *
+     * WooCommerce variation attribute meta keys are built as:
+     *   - attribute_{local_slug}      for custom/local attributes (is_taxonomy = 0)
+     *   - attribute_pa_{tax_slug}     for taxonomy attributes (is_taxonomy = 1, pa_*)
+     *
+     * Reading the parent's _product_attributes tells us the exact keys in use
+     * so we never write phantom keys that break the variation selector.
+     *
+     * @param int $product_id Parent product post ID.
+     * @return string[] Array of meta key strings.
+     */
+    public static function resolve_attribute_meta_keys(int $product_id): array {
+        $product_attrs = get_post_meta($product_id, '_product_attributes', true);
+
+        if (empty($product_attrs) || !is_array($product_attrs)) {
+            return ['attribute_color'];
+        }
+
+        $keys = [];
+        foreach ($product_attrs as $slug => $attr_def) {
+            if (empty($attr_def['is_variation'])) {
+                continue;
+            }
+            $clean = sanitize_title($slug);
+            if (!empty($attr_def['is_taxonomy'])) {
+                // Taxonomy attribute (e.g. pa_color) -> meta key attribute_pa_color
+                $keys[] = 'attribute_pa_' . $clean;
+            } else {
+                // Local/custom attribute (e.g. color) -> meta key attribute_color
+                $keys[] = 'attribute_' . $clean;
+            }
+        }
+
+        return !empty($keys) ? $keys : ['attribute_color'];
+    }
+
+    /**
+     * Handle WC Variation Save action (Direction A: WC -> TVAK).
      *
      * @param int $variation_id WC Variation Post ID.
-     * @param int $i            Variation index.
+     * @param int $i            Variation index (unused, kept for hook compatibility).
      * @return void
      */
     public static function sync_wc_variation_to_tvak($variation_id, $i = 0) {
@@ -62,36 +127,35 @@ class Tvak_Shade_Sync {
                 return;
             }
 
-            // Extract shade name from variation attributes or title
+            // Extract shade name dynamically from WC variation attributes
             $shade_name = '';
             if (function_exists('wc_get_product')) {
                 $wc_var = wc_get_product($variation_id);
                 if ($wc_var && $wc_var->is_type('variation')) {
-                    $attributes = $wc_var->get_variation_attributes();
-                    $shade_name = implode(' / ', array_filter($attributes));
+                    $attrs = $wc_var->get_variation_attributes();
+                    $shade_name = implode(' / ', array_filter(array_values($attrs)));
                 }
             }
 
+            // Fallback: parse last segment of title (e.g. "Product Name - Bubble Gum")
             if (empty($shade_name)) {
-                $title_parts = explode('-', $variation_post->post_title);
-                $shade_name  = trim(end($title_parts));
+                $parts      = explode(' - ', $variation_post->post_title, 2);
+                $shade_name = isset($parts[1]) ? trim($parts[1]) : trim(end(explode('-', $variation_post->post_title)));
             }
 
             if (empty($shade_name)) {
                 $shade_name = 'Variation #' . $variation_id;
             }
 
-            // Extract Price, Stock Status, Image
-            $price = get_post_meta($variation_id, '_price', true);
-            $price_val = ($price !== '' && $price !== false) ? (float) $price : null;
-
+            // Price, Stock, Image
+            $price_raw   = get_post_meta($variation_id, '_price', true);
+            $price_val   = ($price_raw !== '' && $price_raw !== false) ? (float) $price_raw : null;
             $stock_status = get_post_meta($variation_id, '_stock_status', true);
             $is_in_stock  = ($stock_status !== 'outofstock') ? 1 : 0;
+            $img_id       = get_post_meta($variation_id, '_thumbnail_id', true);
+            $image_url    = $img_id ? wp_get_attachment_image_url($img_id, 'medium') : null;
 
-            $img_id    = get_post_meta($variation_id, '_thumbnail_id', true);
-            $image_url = $img_id ? wp_get_attachment_image_url($img_id, 'medium') : null;
-
-            // Extract or generate Shade Hex code
+            // Shade hex: variation meta -> resolver -> dynamic WP option fallback
             $shade_hex = get_post_meta($variation_id, '_shade_hex', true)
                 ?: get_post_meta($variation_id, '_swatch_color', true);
 
@@ -100,10 +164,10 @@ class Tvak_Shade_Sync {
             }
 
             if (empty($shade_hex)) {
-                $shade_hex = '#D4AF37';
+                $shade_hex = self::get_default_hex();
             }
 
-            // Save or update TVAK Product Shade row
+            // Persist to TVAK shades table
             if (class_exists('Tvak_Product_Shade')) {
                 Tvak_Product_Shade::save_shade([
                     'product_id'   => $product_id,
@@ -118,7 +182,6 @@ class Tvak_Shade_Sync {
                 Tvak_Product_Shade::set_product_has_shades($product_id, true);
             }
 
-            // Invalidate rules cache so engine picks up changes immediately
             if (class_exists('Tvak_Cache')) {
                 Tvak_Cache::invalidate_rules_cache();
             }
@@ -150,7 +213,7 @@ class Tvak_Shade_Sync {
      *
      * Called automatically whenever a shade is saved via Tvak_Product_Shade::save_shade().
      *
-     * @param array $shade_data Saved shade array containing product_id, variation_id, shade_name, shade_hex, price, is_in_stock.
+     * @param array $shade_data Saved shade array.
      * @return int Resolved or newly created WooCommerce variation ID.
      */
     public static function sync_tvak_shade_to_wc(array $shade_data): int {
@@ -161,7 +224,8 @@ class Tvak_Shade_Sync {
         $product_id   = (int) ($shade_data['product_id'] ?? 0);
         $variation_id = !empty($shade_data['variation_id']) ? (int) $shade_data['variation_id'] : 0;
         $shade_name   = sanitize_text_field($shade_data['shade_name'] ?? '');
-        $shade_hex    = sanitize_text_field($shade_data['shade_hex'] ?? '#D4AF37');
+        // Dynamic fallback — reads WP option or DB column default; no hardcoded PHP value
+        $shade_hex    = sanitize_text_field(!empty($shade_data['shade_hex']) ? $shade_data['shade_hex'] : self::get_default_hex());
         $price        = isset($shade_data['price']) && $shade_data['price'] !== '' ? (float) $shade_data['price'] : null;
         $is_in_stock  = isset($shade_data['is_in_stock']) ? (int) $shade_data['is_in_stock'] : 1;
 
@@ -178,7 +242,7 @@ class Tvak_Shade_Sync {
                 return $variation_id;
             }
 
-            // Ensure parent WooCommerce product is set to variable type if shades exist
+            // Ensure product type is variable
             if (function_exists('wp_set_object_terms') && function_exists('wc_get_product')) {
                 $wc_parent = wc_get_product($product_id);
                 if ($wc_parent && !$wc_parent->is_type('variable')) {
@@ -186,14 +250,19 @@ class Tvak_Shade_Sync {
                 }
             }
 
-            // Verify or Create WooCommerce Variation Post
+            // Determine attribute meta keys for this specific product — fully dynamic
+            $attr_keys    = self::resolve_attribute_meta_keys($product_id);
+            $attr_meta_in = "'" . implode("','", array_map('esc_sql', array_merge($attr_keys, ['_tvak_shade_name']))) . "'";
+
             if ($variation_id && get_post($variation_id)) {
-                // Existing variation: update meta
+                // Update existing variation
                 update_post_meta($variation_id, '_tvak_shade_name', $shade_name);
                 update_post_meta($variation_id, '_tvak_shade_hex', $shade_hex);
                 update_post_meta($variation_id, '_shade_hex', $shade_hex);
-                update_post_meta($variation_id, 'attribute_color', $shade_name);
-                update_post_meta($variation_id, 'attribute_pa_color', $shade_name);
+
+                foreach ($attr_keys as $attr_key) {
+                    update_post_meta($variation_id, $attr_key, $shade_name);
+                }
 
                 if ($price !== null) {
                     update_post_meta($variation_id, '_regular_price', $price);
@@ -203,11 +272,19 @@ class Tvak_Shade_Sync {
                 update_post_meta($variation_id, '_stock_status', $is_in_stock ? 'instock' : 'outofstock');
 
             } else {
-                // Check if a WooCommerce variation post with this title/attribute already exists
+                // Find or create the WC variation post
                 global $wpdb;
                 $existing_var_id = $wpdb->get_var(
                     $wpdb->prepare(
-                        "SELECT ID FROM {$wpdb->prefix}posts WHERE post_parent = %d AND post_type = 'product_variation' AND (post_title LIKE %s OR ID IN (SELECT post_id FROM {$wpdb->prefix}postmeta WHERE meta_key IN ('attribute_color','attribute_pa_color','_tvak_shade_name') AND LOWER(meta_value) = %s)) LIMIT 1",
+                        "SELECT ID FROM {$wpdb->prefix}posts
+                         WHERE post_parent = %d AND post_type = 'product_variation'
+                           AND (post_title LIKE %s
+                                OR ID IN (
+                                    SELECT post_id FROM {$wpdb->prefix}postmeta
+                                    WHERE meta_key IN ({$attr_meta_in})
+                                      AND LOWER(meta_value) = %s
+                                ))
+                         LIMIT 1",
                         $product_id,
                         '%' . $wpdb->esc_like($shade_name) . '%',
                         strtolower(trim($shade_name))
@@ -217,14 +294,13 @@ class Tvak_Shade_Sync {
                 if ($existing_var_id) {
                     $variation_id = (int) $existing_var_id;
                 } else {
-                    // Create new WooCommerce Product Variation post
                     $variation_post_id = wp_insert_post([
-                        'post_title'   => $parent_post->post_title . ' - ' . $shade_name,
-                        'post_name'    => sanitize_title($parent_post->post_title . '-' . $shade_name),
-                        'post_status'  => 'publish',
-                        'post_parent'  => $product_id,
-                        'post_type'    => 'product_variation',
-                        'menu_order'   => 0,
+                        'post_title'  => $parent_post->post_title . ' - ' . $shade_name,
+                        'post_name'   => sanitize_title($parent_post->post_title . '-' . $shade_name),
+                        'post_status' => 'publish',
+                        'post_parent' => $product_id,
+                        'post_type'   => 'product_variation',
+                        'menu_order'  => 0,
                     ]);
 
                     if ($variation_post_id && !is_wp_error($variation_post_id)) {
@@ -233,18 +309,18 @@ class Tvak_Shade_Sync {
                 }
 
                 if ($variation_id) {
-                    // Set WC Variation Attributes and Meta
                     update_post_meta($variation_id, '_tvak_shade_name', $shade_name);
                     update_post_meta($variation_id, '_tvak_shade_hex', $shade_hex);
                     update_post_meta($variation_id, '_shade_hex', $shade_hex);
-                    update_post_meta($variation_id, 'attribute_color', $shade_name);
-                    update_post_meta($variation_id, 'attribute_pa_color', $shade_name);
+
+                    foreach ($attr_keys as $attr_key) {
+                        update_post_meta($variation_id, $attr_key, $shade_name);
+                    }
 
                     if ($price !== null) {
                         update_post_meta($variation_id, '_regular_price', $price);
                         update_post_meta($variation_id, '_price', $price);
                     } else {
-                        // Inherit parent product price if available
                         $parent_price = get_post_meta($product_id, '_price', true);
                         if (!empty($parent_price)) {
                             update_post_meta($variation_id, '_regular_price', $parent_price);
@@ -278,12 +354,11 @@ class Tvak_Shade_Sync {
         $shades_table = $wpdb->prefix . 'tvak_product_shades';
         $synced_count = 0;
 
-        // Fetch all parent WooCommerce products that have children variations
         $variable_products = $wpdb->get_results("
-            SELECT DISTINCT post_parent AS product_id 
-            FROM {$wpdb->prefix}posts 
-            WHERE post_type = 'product_variation' 
-              AND post_status = 'publish' 
+            SELECT DISTINCT post_parent AS product_id
+            FROM {$wpdb->prefix}posts
+            WHERE post_type = 'product_variation'
+              AND post_status = 'publish'
               AND post_parent > 0
         ", ARRAY_A);
 
@@ -294,12 +369,11 @@ class Tvak_Shade_Sync {
         foreach ($variable_products as $vp) {
             $product_id = (int) $vp['product_id'];
 
-            // Fetch all variation children for this product
             $variations = $wpdb->get_results($wpdb->prepare("
-                SELECT ID, post_title 
-                FROM {$wpdb->prefix}posts 
-                WHERE post_parent = %d 
-                  AND post_type = 'product_variation' 
+                SELECT ID, post_title
+                FROM {$wpdb->prefix}posts
+                WHERE post_parent = %d
+                  AND post_type = 'product_variation'
                   AND post_status = 'publish'
                 ORDER BY ID ASC
             ", $product_id), ARRAY_A);
@@ -313,14 +387,12 @@ class Tvak_Shade_Sync {
             foreach ($variations as $idx => $v) {
                 $var_id = (int) $v['ID'];
 
-                // Check if already present in wp_tvak_product_shades
                 $existing = $wpdb->get_var($wpdb->prepare("
-                    SELECT shade_id FROM {$shades_table} 
+                    SELECT shade_id FROM {$shades_table}
                     WHERE product_id = %d AND variation_id = %d
                 ", $product_id, $var_id));
 
                 if (!$existing) {
-                    // Trigger sync to populate wp_tvak_product_shades
                     self::sync_wc_variation_to_tvak($var_id, $idx);
                     $synced_count++;
                 }

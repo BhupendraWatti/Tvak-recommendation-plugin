@@ -80,7 +80,51 @@
 
     fallbackInit: function() {
       var self = this;
-      // Legacy fallback default quiz configuration
+      // Retry the REST endpoint once after a brief delay before using the static snapshot.
+      // This handles race conditions where WP isn't fully bootstrapped on the first try.
+      var configUrl = (tvak_vars && tvak_vars.api_url)
+        ? tvak_vars.api_url.replace('/recommend', '/quiz-config')
+        : '/wp-json/tvak/v1/quiz-config';
+
+      setTimeout(function() {
+        $.ajax({
+          url: configUrl,
+          type: 'GET',
+          success: function(res) {
+            if (res && res.success && res.quiz_config && res.quiz_config.steps.length > 0) {
+              self.quizConfig = res.quiz_config;
+              self.totalSteps = res.quiz_config.total_steps;
+              res.quiz_config.steps.forEach(function(s) {
+                if (s.input_type === 'multi_select') {
+                  self.profile[s.attribute_code] = [];
+                } else {
+                  self.profile[s.attribute_code] = (s.terms.length > 0) ? s.terms[0].term_slug : '';
+                }
+              });
+              self.renderLayout();
+            } else {
+              self._applyStaticFallback();
+            }
+          },
+          error: function() {
+            self._applyStaticFallback();
+          }
+        });
+      }, 3000);
+    },
+
+    /**
+     * Last-resort static fallback quiz config.
+     * Used only when /quiz-config is unreachable after two attempts.
+     * Keep in sync with wp_tvak_master_terms DB seed data.
+     * Default profile values are derived dynamically from the first term of each
+     * step — not hardcoded slugs — so adding a new option to DB still works here.
+     */
+    _applyStaticFallback: function() {
+      var self = this;
+      console.warn('TVAK: quiz-config API unreachable. Falling back to static snapshot. ' +
+        'Update the DB seed and this snapshot together.');
+
       self.quizConfig = {
         total_steps: 3,
         steps: [
@@ -106,8 +150,8 @@
             input_type: 'single_select',
             terms: [
               { term_slug: 'fair_light', label: 'Fair / Light', swatch_color: '#F6E5D7' },
-              { term_slug: 'light_medium', label: 'Light – Medium', swatch_color: '#E8CEB8' },
-              { term_slug: 'medium_deep', label: 'Medium – Deep', swatch_color: '#C9A382' },
+              { term_slug: 'light_medium', label: 'Light \u2013 Medium', swatch_color: '#E8CEB8' },
+              { term_slug: 'medium_deep', label: 'Medium \u2013 Deep', swatch_color: '#C9A382' },
               { term_slug: 'deep_rich', label: 'Deep & Rich', swatch_color: '#8D5B3A' },
               { term_slug: 'very_deep', label: 'Very Deep', swatch_color: '#4F301F' }
             ]
@@ -131,8 +175,17 @@
         ]
       };
 
-      self.totalSteps = 3;
-      self.profile = { skin_type: 'normal', skin_tone: 'fair_light', skin_concern: [] };
+      self.totalSteps = self.quizConfig.total_steps;
+
+      // Derive default profile dynamically from first available term of each step
+      self.quizConfig.steps.forEach(function(s) {
+        if (s.input_type === 'multi_select') {
+          self.profile[s.attribute_code] = [];
+        } else {
+          self.profile[s.attribute_code] = (s.terms.length > 0) ? s.terms[0].term_slug : '';
+        }
+      });
+
       self.renderLayout();
     },
 

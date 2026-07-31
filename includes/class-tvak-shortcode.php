@@ -43,11 +43,15 @@ class Tvak_Shortcode {
             'attr_api'        => esc_url_raw(rest_url('tvak/v1/attributes')),
             'ajax_url'        => esc_url_raw(admin_url('admin-ajax.php')),
             'nonce'           => wp_create_nonce('wp_rest'),
-            'accent_color'    => '#D4AF37',
+            // Dynamic accent colour from WP option — configurable in TVAK Settings
+            'accent_color'    => class_exists('Tvak_Shade_Sync')
+                                    ? Tvak_Shade_Sync::get_default_hex()
+                                    : (get_option('tvak_default_shade_hex') ?: '#D4AF37'),
             // Live WooCommerce currency data — JS uses these for price formatting
             'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol()) : '₹',
             'currency_code'   => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'INR',
         ]);
+
 
         ob_start();
         ?>
