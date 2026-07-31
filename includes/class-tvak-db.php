@@ -411,84 +411,17 @@ class Tvak_DB {
 
     /**
      * Seed and link WooCommerce variation SKUs directly to TVAK Product Shades table.
+     * 100% dynamic — auto-discovers live variations from WooCommerce database.
      *
      * @return void
      */
     public static function seed_product_shades(): void {
-        if (!class_exists('Tvak_Product_Shade')) {
-            return;
+        if (class_exists('Tvak_Shade_Sync')) {
+            Tvak_Shade_Sync::auto_sync_catalog();
         }
 
-        global $wpdb;
-        $table_shades = $wpdb->prefix . 'tvak_product_shades';
-
-        // Master Shade Seed Dataset mapped directly to WooCommerce variation post IDs
-        $shade_seeds = [
-            // Product #14: BB Cream – SPF 30
-            14 => [
-                ['var_id' => 15, 'name' => 'Soft Beige (SH-1044)', 'hex' => '#E5C39E', 'order' => 1],
-                ['var_id' => 16, 'name' => 'Biscuit (SH-1047)',    'hex' => '#D5A77B', 'order' => 2],
-                ['var_id' => 17, 'name' => 'Bisque (SH-1049)',     'hex' => '#C89466', 'order' => 3],
-                ['var_id' => 18, 'name' => 'Honey Warm (SH-1052)', 'hex' => '#B87C4C', 'order' => 4],
-                ['var_id' => 19, 'name' => 'Espresso Cocoa (SH-1060)', 'hex' => '#70442A', 'order' => 5],
-            ],
-            // Product #21: Mousse Liquid Lipstick
-            21 => [
-                ['var_id' => 22, 'name' => 'Bubblegum June (SH-346)', 'hex' => '#D07765', 'order' => 1],
-                ['var_id' => 23, 'name' => 'Cherry Charm (SH-357)',   'hex' => '#A32328', 'order' => 2],
-                ['var_id' => 24, 'name' => 'Evening Star (SH-301)',   'hex' => '#A01C24', 'order' => 3],
-                ['var_id' => 25, 'name' => 'Mulberry Mood (SH-361)',  'hex' => '#781A22', 'order' => 4],
-                ['var_id' => 26, 'name' => 'Brunette (SH-337)',       'hex' => '#F5EBE1', 'order' => 5],
-            ],
-            // Product #27: Kajal Intense Eyeliner
-            27 => [
-                ['var_id' => null, 'name' => 'Sapphire',  'hex' => '#1A2F50', 'order' => 1],
-                ['var_id' => null, 'name' => 'Onyx',      'hex' => '#0F0F11', 'order' => 2],
-                ['var_id' => null, 'name' => 'Espresso',  'hex' => '#3B231A', 'order' => 3],
-                ['var_id' => null, 'name' => 'Cinnabar',  'hex' => '#541B19', 'order' => 4],
-                ['var_id' => null, 'name' => 'Pewter',    'hex' => '#41474D', 'order' => 5],
-            ],
-        ];
-
-        foreach ($shade_seeds as $product_id => $shades) {
-            Tvak_Product_Shade::set_product_has_shades($product_id, true);
-
-            foreach ($shades as $s) {
-                $var_id = $s['var_id'];
-                $name   = $s['name'];
-                $hex    = $s['hex'];
-                $order  = $s['order'];
-
-                // Save to wp_tvak_product_shades
-                Tvak_Product_Shade::save_shade([
-                    'product_id'   => $product_id,
-                    'variation_id' => $var_id,
-                    'shade_name'   => $name,
-                    'shade_hex'    => $hex,
-                    'is_in_stock'  => 1,
-                    'sort_order'   => $order,
-                ]);
-
-                // Synchronize attributes directly onto WooCommerce variation postmeta if variation post exists
-                if ($var_id && function_exists('update_post_meta')) {
-                    update_post_meta($var_id, '_tvak_shade_name', $name);
-                    update_post_meta($var_id, '_tvak_shade_hex', $hex);
-                    update_post_meta($var_id, 'attribute_shade', $name);
-                    update_post_meta($var_id, 'attribute_pa_color', $name);
-                }
-            }
-
-            // Remove self-referential single dummy entries where shade_name matches product title
-            $title = get_the_title($product_id);
-            if (!empty($title)) {
-                $wpdb->query(
-                    $wpdb->prepare(
-                        "DELETE FROM {$table_shades} WHERE product_id = %d AND LOWER(TRIM(shade_name)) = LOWER(TRIM(%s))",
-                        $product_id,
-                        $title
-                    )
-                );
-            }
+        if (class_exists('Tvak_Product_Rule')) {
+            Tvak_Product_Rule::auto_reconcile_unmapped_products();
         }
     }
 }

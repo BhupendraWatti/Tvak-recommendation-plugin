@@ -78,6 +78,9 @@ class Tvak_Product_Rule {
             return $cached;
         }
 
+        // Auto-discover any newly added WooCommerce products that lack a rule
+        self::auto_reconcile_unmapped_products();
+
         global $wpdb;
         $rule_table = self::get_rule_table();
         $attr_table = self::get_attr_table();
@@ -241,5 +244,44 @@ class Tvak_Product_Rule {
         }
 
         return false;
+    }
+
+    /**
+     * Auto-reconcile unmapped WooCommerce products.
+     * Finds published products in WooCommerce that lack a TVAK recommendation rule,
+     * auto-detects their kit slot, and inserts an active rule.
+     *
+     * @return int Number of newly reconciled products.
+     */
+    public static function auto_reconcile_unmapped_products(): int {
+        global $wpdb;
+        $rule_table = self::get_rule_table();
+
+        $unmapped_ids = $wpdb->get_col("
+            SELECT p.ID FROM {$wpdb->prefix}posts p
+            WHERE p.post_type = 'product'
+              AND p.post_status = 'publish'
+              AND p.ID NOT IN (SELECT product_id FROM {$rule_table})
+        ");
+
+        if (empty($unmapped_ids)) {
+            return 0;
+        }
+
+        $reconciled = 0;
+        foreach ($unmapped_ids as $pid) {
+            $product_id = (int) $pid;
+            $slot_id    = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::detect_product_kit_slot($product_id) : 5;
+            
+            self::save_rule($product_id, $slot_id, 0.00, 1, []);
+
+            if (class_exists('Tvak_Shade_Sync')) {
+                Tvak_Shade_Sync::auto_sync_product_variations($product_id);
+            }
+
+            $reconciled++;
+        }
+
+        return $reconciled;
     }
 }

@@ -30,9 +30,20 @@ class Tvak_Shade_Sync {
         add_action('woocommerce_save_product_variation', [__CLASS__, 'sync_wc_variation_to_tvak'], 10, 2);
         add_action('woocommerce_update_product_variation', [__CLASS__, 'sync_wc_variation_to_tvak'], 10, 2);
         add_action('woocommerce_new_product_variation', [__CLASS__, 'sync_wc_variation_to_tvak'], 10, 2);
-
-        // Direction A Fallback: Save post hook for product_variation
         add_action('save_post_product_variation', [__CLASS__, 'on_save_post_variation'], 10, 3);
+
+        // Product Lifecycle Hooks: Product Created / Updated / Deleted
+        add_action('woocommerce_new_product', [__CLASS__, 'sync_wc_product_lifecycle'], 10, 1);
+        add_action('woocommerce_update_product', [__CLASS__, 'sync_wc_product_lifecycle'], 10, 1);
+        add_action('save_post_product', [__CLASS__, 'on_save_post_product'], 10, 3);
+        add_action('woocommerce_delete_product', [__CLASS__, 'sync_wc_product_deletion'], 10, 1);
+        add_action('wp_trash_post', [__CLASS__, 'sync_wc_product_deletion'], 10, 1);
+
+        // WooCommerce Attribute & Term Swatch Hooks
+        add_action('created_term', [__CLASS__, 'on_term_modified'], 10, 3);
+        add_action('edited_term', [__CLASS__, 'on_term_modified'], 10, 3);
+        add_action('woocommerce_attribute_added', [__CLASS__, 'on_attribute_modified'], 10, 2);
+        add_action('woocommerce_attribute_updated', [__CLASS__, 'on_attribute_modified'], 10, 3);
     }
 
     /**
@@ -101,6 +112,45 @@ class Tvak_Shade_Sync {
     }
 
     /**
+     * Extract HEX color from WooCommerce Swatches termmeta.
+     * Supports Emran Ahmed's Swatches, CartFlows, RadiusTheme, VillaTheme, etc.
+     *
+     * @param int    $term_id  Term ID.
+     * @param string $taxonomy Taxonomy slug (e.g. pa_color).
+     * @return string HEX color code with leading # or empty string.
+     */
+    /**
+     * Extract HEX color from WooCommerce Swatches termmeta.
+     * 100% dynamic — inspects all termmeta keys registered on the term.
+     *
+     * @param int    $term_id  Term ID.
+     * @param string $taxonomy Taxonomy slug (e.g. pa_color).
+     * @return string HEX color code with leading # or empty string.
+     */
+    public static function get_term_swatch_color($term_id, $taxonomy = ''): string {
+        if (!$term_id) {
+            return '';
+        }
+
+        $all_term_meta = get_term_meta($term_id);
+        if (is_array($all_term_meta)) {
+            foreach ($all_term_meta as $key => $values) {
+                if (is_array($values)) {
+                    foreach ($values as $val) {
+                        if (is_string($val) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($val))) {
+                            return trim($val);
+                        }
+                    }
+                } elseif (is_string($values) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($values))) {
+                    return trim($values);
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Handle WC Variation Save action (Direction A: WC -> TVAK).
      *
      * @param int $variation_id WC Variation Post ID.
@@ -148,16 +198,67 @@ class Tvak_Shade_Sync {
             }
 
             // Price, Stock, Image
-            $price_raw   = get_post_meta($variation_id, '_price', true);
-            $price_val   = ($price_raw !== '' && $price_raw !== false) ? (float) $price_raw : null;
+            $price_raw    = get_post_meta($variation_id, '_price', true);
+            $price_val    = ($price_raw !== '' && $price_raw !== false) ? (float) $price_raw : null;
             $stock_status = get_post_meta($variation_id, '_stock_status', true);
             $is_in_stock  = ($stock_status !== 'outofstock') ? 1 : 0;
             $img_id       = get_post_meta($variation_id, '_thumbnail_id', true);
             $image_url    = $img_id ? wp_get_attachment_image_url($img_id, 'medium') : null;
 
-            // Shade hex: variation meta -> resolver -> dynamic WP option fallback
-            $shade_hex = get_post_meta($variation_id, '_shade_hex', true)
-                ?: get_post_meta($variation_id, '_swatch_color', true);
+            // 1. Dynamic Postmeta HEX Extraction: inspect all postmeta registered on variation post
+            $shade_hex = '';
+            $all_post_meta = get_post_meta($variation_id);
+            if (is_array($all_post_meta)) {
+                foreach ($all_post_meta as $mk => $mval) {
+                    if (strpos($mk, 'color') !== false || strpos($mk, 'hex') !== false || strpos($mk, 'swatch') !== false) {
+                        $v_str = is_array($mval) ? reset($mval) : $mval;
+                        if (is_string($v_str) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($v_str))) {
+                            $shade_hex = trim($v_str);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Dynamic Termmeta HEX Extraction: inspect all attribute terms
+            if (empty($shade_hex) && function_exists('wc_get_product')) {
+                $wc_var = wc_get_product($variation_id);
+                if ($wc_var && $wc_var->is_type('variation')) {
+                    $v_attrs = $wc_var->get_variation_attributes();
+                    foreach ($v_attrs as $tax_key => $term_val) {
+                        if (!empty($term_val)) {
+                            $tax_name = str_replace('attribute_', '', $tax_key);
+                            
+                            $term_obj = get_term_by('slug', $term_val, $tax_name);
+                            if (!$term_obj) {
+                                $term_obj = get_term_by('slug', sanitize_title($term_val), $tax_name);
+                            }
+                            if (!$term_obj) {
+                                $term_obj = get_term_by('name', $term_val, $tax_name);
+                            }
+                            if (!$term_obj && !empty($shade_name)) {
+                                $term_obj = get_term_by('name', $shade_name, $tax_name);
+                            }
+
+                            if ($term_obj && !is_wp_error($term_obj)) {
+                                $term_hex = self::get_term_swatch_color($term_obj->term_id, $tax_name);
+                                if (!empty($term_hex)) {
+                                    $shade_hex = $term_hex;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (empty($shade_hex) && class_exists('Tvak_Variant_Resolver')) {
+                $shade_hex = Tvak_Variant_Resolver::get_shade_hex($shade_name, $product_id, $variation_id);
+            }
+
+            if (empty($shade_hex)) {
+                $shade_hex = self::get_default_hex();
+            }
 
             if (empty($shade_hex) && class_exists('Tvak_Variant_Resolver')) {
                 $shade_hex = Tvak_Variant_Resolver::get_shade_hex($shade_name, $product_id, $variation_id);
@@ -366,11 +467,14 @@ class Tvak_Shade_Sync {
             return 0;
         }
 
-        foreach ($variable_products as $vp) {
-            $product_id = (int) $vp['product_id'];
+        foreach ($variable_products as $p) {
+            $product_id = (int) (is_array($p) ? ($p['product_id'] ?? 0) : ($p->product_id ?? 0));
+            if (!$product_id) {
+                continue;
+            }
 
             $variations = $wpdb->get_results($wpdb->prepare("
-                SELECT ID, post_title
+                SELECT ID
                 FROM {$wpdb->prefix}posts
                 WHERE post_parent = %d
                   AND post_type = 'product_variation'
@@ -385,7 +489,10 @@ class Tvak_Shade_Sync {
             Tvak_Product_Shade::set_product_has_shades($product_id, true);
 
             foreach ($variations as $idx => $v) {
-                $var_id = (int) $v['ID'];
+                $var_id = (int) (is_array($v) ? ($v['ID'] ?? $v['id'] ?? 0) : ($v->ID ?? $v->id ?? 0));
+                if (!$var_id) {
+                    continue;
+                }
 
                 $existing = $wpdb->get_var($wpdb->prepare("
                     SELECT shade_id FROM {$shades_table}
@@ -400,5 +507,154 @@ class Tvak_Shade_Sync {
         }
 
         return $synced_count;
+    }
+
+    /**
+     * Sync WooCommerce Product lifecycle changes (New / Update) to TVAK engine.
+     * Automatically registers product rule and kit slot, and auto-syncs shades.
+     *
+     * @param int $product_id Product Post ID.
+     * @return void
+     */
+    public static function sync_wc_product_lifecycle($product_id) {
+        if (self::$is_syncing || !$product_id) {
+            return;
+        }
+
+        $post = get_post($product_id);
+        if (!$post || $post->post_type !== 'product' || in_array($post->post_status, ['auto-draft', 'trash'], true)) {
+            return;
+        }
+
+        self::$is_syncing = true;
+
+        try {
+            // Auto-detect & auto-assign kit slot if rule does not exist
+            if (class_exists('Tvak_Product_Rule')) {
+                $existing_rule = Tvak_Product_Rule::get_by_product_id($product_id);
+                if (!$existing_rule) {
+                    $slot_id = self::detect_product_kit_slot($product_id);
+                    Tvak_Product_Rule::save_rule($product_id, $slot_id, 0.00, 1, []);
+                }
+            }
+
+            // Sync child variations / shades if product has variations
+            self::auto_sync_product_variations($product_id);
+
+            if (class_exists('Tvak_Cache')) {
+                Tvak_Cache::invalidate_rules_cache();
+            }
+        } catch (\Exception $e) {
+            error_log('Tvak_Shade_Sync Exception (Product Lifecycle): ' . $e->getMessage());
+        }
+
+        self::$is_syncing = false;
+    }
+
+    /**
+     * Auto-detect appropriate Kit Slot for a WooCommerce product based on categories/type/tags.
+     * Slot 1: Cleanser / Purify
+     * Slot 2: Treatment Cream / Hydration
+     * Slot 3: Complexion / BB Cream
+     * Slot 4: Setting Spray / Finish
+     * Slot 5: Universal Accent / Color (Lipstick, Eyeliner, Blush, Kajal)
+     */
+    public static function detect_product_kit_slot(int $product_id): int {
+        $terms = wp_get_post_terms($product_id, ['product_cat', 'product_tag', 'pa_product-type'], ['fields' => 'names']);
+        $text  = strtolower(implode(' ', is_wp_error($terms) ? [] : $terms));
+        
+        $title     = get_the_title($product_id);
+        $full_text = strtolower($title . ' ' . $text);
+
+        if (preg_match('/cleans|balm|wash|purif|remover/', $full_text)) {
+            return 1; // Slot 1: Cleanser
+        }
+        if (preg_match('/\bbb\b|complexion|tint|foundation|\bcc\b|skin finish/', $full_text)) {
+            return 3; // Slot 3: Complexion BB
+        }
+        if (preg_match('/cream|moistur|serum|hydrat|treatment|compound/', $full_text)) {
+            return 2; // Slot 2: Cream
+        }
+        if (preg_match('/spray|setting|finish|mist|fixer/', $full_text)) {
+            return 4; // Slot 4: Setting Spray
+        }
+
+        // Default to Slot 5: Universal Accent (Lipsticks, Eyeliners, Cosmetics)
+        return 5;
+    }
+
+    /**
+     * Auto-sync variations for a specific variable product.
+     */
+    public static function auto_sync_product_variations(int $product_id) {
+        $children = get_posts([
+            'post_parent' => $product_id,
+            'post_type'   => 'product_variation',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'fields'      => 'ids',
+        ]);
+
+        if (!empty($children)) {
+            if (class_exists('Tvak_Product_Shade')) {
+                Tvak_Product_Shade::set_product_has_shades($product_id, true);
+            }
+            foreach ($children as $idx => $child_id) {
+                self::sync_wc_variation_to_tvak($child_id, $idx);
+            }
+        }
+    }
+
+    /**
+     * Sync WooCommerce Product Deletion.
+     */
+    public static function sync_wc_product_deletion($post_id) {
+        if (!$post_id) {
+            return;
+        }
+
+        $post_type = get_post_type($post_id);
+        if ($post_type !== 'product' && $post_type !== 'product_variation') {
+            return;
+        }
+
+        if ($post_type === 'product' && class_exists('Tvak_Product_Rule')) {
+            Tvak_Product_Rule::delete_rule($post_id);
+        }
+
+        if (class_exists('Tvak_Product_Shade')) {
+            global $wpdb;
+            $table = Tvak_Product_Shade::get_table_name();
+            if ($post_type === 'product') {
+                $wpdb->delete($table, ['product_id' => $post_id], ['%d']);
+            } else {
+                $wpdb->delete($table, ['variation_id' => $post_id], ['%d']);
+            }
+        }
+
+        if (class_exists('Tvak_Cache')) {
+            Tvak_Cache::invalidate_rules_cache();
+        }
+    }
+
+    public static function on_save_post_product($post_id, $post, $update) {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+        self::sync_wc_product_lifecycle($post_id);
+    }
+
+    public static function on_term_modified($term_id, $tt_id, $taxonomy) {
+        if (strpos($taxonomy, 'pa_') === 0 || in_array($taxonomy, ['product_cat', 'product_tag'], true)) {
+            if (class_exists('Tvak_Cache')) {
+                Tvak_Cache::invalidate_rules_cache();
+            }
+        }
+    }
+
+    public static function on_attribute_modified() {
+        if (class_exists('Tvak_Cache')) {
+            Tvak_Cache::invalidate_rules_cache();
+        }
     }
 }

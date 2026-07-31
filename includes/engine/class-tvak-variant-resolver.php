@@ -41,15 +41,53 @@ class Tvak_Variant_Resolver {
             }
         }
 
-        // 2. Check variation meta in WooCommerce (_shade_hex or _swatch_color)
+        // 2. Check variation meta in WooCommerce (_shade_hex, _swatch_color, _wcvs_swatch_color)
         if ($variation_id) {
-            $v_hex = get_post_meta($variation_id, '_shade_hex', true) ?: get_post_meta($variation_id, '_swatch_color', true);
+            $v_hex = get_post_meta($variation_id, '_shade_hex', true)
+                ?: get_post_meta($variation_id, '_swatch_color', true)
+                ?: get_post_meta($variation_id, '_wcvs_swatch_color', true);
+
             if (!empty($v_hex)) {
                 return $v_hex;
             }
+
+            // Check termmeta for variation taxonomy terms (e.g. pa_color)
+            if (class_exists('Tvak_Shade_Sync') && function_exists('wc_get_product')) {
+                $wc_var = wc_get_product($variation_id);
+                if ($wc_var && $wc_var->is_type('variation')) {
+                    $v_attrs = $wc_var->get_variation_attributes();
+                    foreach ($v_attrs as $tax_key => $term_val) {
+                        if (!empty($term_val)) {
+                            $tax_name = str_replace('attribute_', '', $tax_key);
+
+                            $term_obj = get_term_by('slug', $term_val, $tax_name);
+                            if (!$term_obj) {
+                                $term_obj = get_term_by('slug', sanitize_title($term_val), $tax_name);
+                            }
+                            if (!$term_obj) {
+                                $term_obj = get_term_by('name', $term_val, $tax_name);
+                            }
+                            if (!$term_obj && !empty($shade_name)) {
+                                $term_obj = get_term_by('name', $shade_name, $tax_name);
+                            }
+
+                            if ($term_obj && !is_wp_error($term_obj)) {
+                                $term_hex = Tvak_Shade_Sync::get_term_swatch_color($term_obj->term_id, $tax_name);
+                                if (!empty($term_hex)) {
+                                    return $term_hex;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // 3. Fallback default cosmetic gold accent hex (100% dynamic, zero hardcoded shade lists)
+        // 3. Fallback default hex from Tvak_Shade_Sync or emergency fallback
+        if (class_exists('Tvak_Shade_Sync')) {
+            return Tvak_Shade_Sync::get_default_hex();
+        }
+
         return '#D4AF37';
     }
 

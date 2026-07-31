@@ -17,19 +17,6 @@ Copy-Item -Path (Join-Path $src "assets\*")   -Destination (Join-Path $dest "ass
 
 Write-Host "== Sync complete ==" -ForegroundColor Green
 
-# Rebuild zip
-Write-Host "== Building zip ==" -ForegroundColor Cyan
-Remove-Item $zip -Force -ErrorAction SilentlyContinue
-
-Compress-Archive -Path @(
-    (Join-Path $src "tvak-beauty-kit.php"),
-    (Join-Path $src "includes"),
-    (Join-Path $src "assets")
-) -DestinationPath $zip -CompressionLevel Optimal
-
-if (Test-Path $zip) {
-    $sizeKB = [math]::Round((Get-Item $zip).Length / 1KB, 1)
-    Write-Host "Zip ready: $zip ($sizeKB KB)" -ForegroundColor Green
-} else {
-    Write-Host "Zip build failed!" -ForegroundColor Red
-}
+# Rebuild zip using python for cross-platform forward-slash zip structure
+Write-Host "== Building cross-platform ZIP ==" -ForegroundColor Cyan
+python (Join-Path $src "build_clean_zip.py")

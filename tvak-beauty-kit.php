@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '1.8.0');
-define('TVAK_DB_VERSION', '1.8.0');
+define('TVAK_VERSION', '1.9.0');
+define('TVAK_DB_VERSION', '1.9.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('TVAK_PLUGIN_FILE', __FILE__);
@@ -159,8 +159,22 @@ final class Tvak_Beauty_Kit {
      */
     public static function activate() {
         require_once TVAK_PLUGIN_DIR . 'includes/class-tvak-db.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-master-data.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-attribute.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-rule.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-shade.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-shade-sync.php';
+
         Tvak_DB::create_tables();
         Tvak_DB::seed_defaults();
+
+        if (class_exists('Tvak_Product_Rule')) {
+            Tvak_Product_Rule::auto_reconcile_unmapped_products();
+        }
+        if (class_exists('Tvak_Shade_Sync')) {
+            Tvak_Shade_Sync::auto_sync_catalog();
+        }
 
         // Clear rewrite rules
         flush_rewrite_rules();
