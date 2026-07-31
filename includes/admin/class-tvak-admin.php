@@ -123,9 +123,9 @@ class Tvak_Admin {
         }
 
         ?>
-        <div class="wrap">
+            <div class="wrap">
             <h1><?php esc_html_e('TVAK Master Data Manager', 'tvak-beauty-kit'); ?></h1>
-            <p><?php esc_html_e('Manage dynamic skin types, skin tones, skin concerns, and custom attributes. These values act as the single source of truth across the Quiz UI, Engine Evaluator, Variant Resolver, and Admin Simulator.', 'tvak-beauty-kit'); ?></p>
+            <p><?php esc_html_e('Manage shopper-facing quiz profile questions separately from WooCommerce catalog attributes. Only attributes marked as quiz questions appear on the frontend quiz.', 'tvak-beauty-kit'); ?></p>
 
             <?php if (isset($_GET['message'])) : ?>
                 <div class="notice notice-success is-dismissible">
@@ -233,6 +233,12 @@ class Tvak_Admin {
                                         <option value="multi_select"><?php esc_html_e('Multi Select (Checkbox Card)', 'tvak-beauty-kit'); ?></option>
                                     </select>
                                 </p>
+                                <p>
+                                    <label>
+                                        <input type="checkbox" name="is_quiz_question" value="1" checked />
+                                        <strong><?php esc_html_e('Show this attribute as a shopper quiz question', 'tvak-beauty-kit'); ?></strong>
+                                    </label>
+                                </p>
                                 <p><input type="submit" class="button button-secondary" value="<?php esc_attr_e('Create Master Attribute Group', 'tvak-beauty-kit'); ?>" /></p>
                             </form>
                         </div>
@@ -249,7 +255,7 @@ class Tvak_Admin {
                                             <code style="margin-left: 8px;">code: <?php echo esc_html($attr['attribute_code']); ?></code>
                                         </div>
                                         <span class="badge" style="background: #2271b1; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 11px;">
-                                            <?php echo esc_html(strtoupper($attr['input_type'])); ?>
+                                            <?php echo !empty($attr['is_quiz_question']) ? esc_html__('QUIZ QUESTION', 'tvak-beauty-kit') : esc_html__('CATALOG ATTRIBUTE', 'tvak-beauty-kit'); ?>
                                         </span>
                                     </div>
 
@@ -334,12 +340,15 @@ class Tvak_Admin {
         $code = sanitize_key($_POST['attribute_code'] ?? '');
         $label = sanitize_text_field($_POST['label'] ?? '');
         $input_type = sanitize_text_field($_POST['input_type'] ?? 'single_select');
+        $is_quiz_question = isset($_POST['is_quiz_question']) ? 1 : 0;
 
         if ($code && $label) {
             Tvak_Master_Data::save_attribute([
                 'attribute_code' => $code,
                 'label'          => $label,
+                'category'       => $is_quiz_question ? 'quiz_profile' : 'woocommerce',
                 'input_type'     => $input_type,
+                'is_quiz_question' => $is_quiz_question,
                 'is_active'      => 1,
             ]);
             Tvak_Cache::invalidate_rules_cache();

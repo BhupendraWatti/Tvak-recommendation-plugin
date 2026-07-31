@@ -174,7 +174,7 @@ class Tvak_REST_API {
         $attributes = Tvak_Cache::get($cache_key);
 
         if (!$attributes) {
-            $attributes = Tvak_Master_Data::get_attributes(true);
+            $attributes = Tvak_Master_Data::get_quiz_attributes(true);
             Tvak_Cache::set($cache_key, $attributes, 3600);
         }
 
@@ -195,7 +195,7 @@ class Tvak_REST_API {
         $quiz_config = Tvak_Cache::get($cache_key);
 
         if (!$quiz_config) {
-            $attributes = Tvak_Master_Data::get_attributes(true);
+            $attributes = Tvak_Master_Data::get_quiz_attributes(true);
             $steps = [];
             $step_num = 1;
 

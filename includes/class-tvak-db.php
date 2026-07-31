@@ -18,7 +18,7 @@ class Tvak_DB {
     /**
      * Current DB Version.
      */
-    const DB_VERSION = '2.0.0';
+    const DB_VERSION = '2.1.0';
 
     /**
      * Create or update custom database tables using dbDelta.
@@ -57,14 +57,21 @@ class Tvak_DB {
             description TEXT NULL,
             input_type VARCHAR(32) NOT NULL DEFAULT 'single_select',
             sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+            is_quiz_question TINYINT(1) NOT NULL DEFAULT 0,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (attribute_id),
             UNIQUE KEY attribute_code (attribute_code),
             KEY category (category),
+            KEY is_quiz_question (is_quiz_question),
             KEY is_active (is_active)
         ) {$charset_collate};";
         dbDelta($sql_master_attr);
+        $has_quiz_col = $wpdb->get_var("SHOW COLUMNS FROM {$table_master_attr} LIKE 'is_quiz_question'");
+        if (!$has_quiz_col) {
+            $wpdb->query("ALTER TABLE {$table_master_attr} ADD is_quiz_question TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order");
+            $wpdb->query("ALTER TABLE {$table_master_attr} ADD KEY is_quiz_question (is_quiz_question)");
+        }
 
         // 3. Master Terms Table
         $table_master_terms = $wpdb->prefix . 'tvak_master_terms';
@@ -192,6 +199,7 @@ class Tvak_DB {
         global $wpdb;
 
         self::sync_wc_kit_slots();
+        self::seed_core_quiz_attributes();
         self::sync_wc_master_data();
 
         // Run automated seeding & linking for WooCommerce Variations and Product Shades
@@ -206,6 +214,10 @@ class Tvak_DB {
               AND t1.product_id = t2.product_id 
               AND LOWER(TRIM(t1.shade_name)) = LOWER(TRIM(t2.shade_name))
         ");
+
+        if (class_exists('Tvak_Cache')) {
+            Tvak_Cache::invalidate_rules_cache();
+        }
     }
 
     /**
@@ -222,6 +234,85 @@ class Tvak_DB {
         if (class_exists('Tvak_Product_Rule')) {
             Tvak_Product_Rule::auto_reconcile_unmapped_products();
         }
+    }
+
+    /**
+     * Seed the three shopper-facing diagnostic questions from the recommendation spec.
+     *
+     * WooCommerce catalog attributes are synced separately and remain background data.
+     *
+     * @return void
+     */
+    public static function seed_core_quiz_attributes(): void {
+        if (!class_exists('Tvak_Master_Data')) {
+            return;
+        }
+
+        $quiz_attributes = [
+            [
+                'attribute_code'   => 'skin_type',
+                'label'            => 'Skin Type',
+                'category'         => 'quiz_profile',
+                'description'      => 'What is your skin type?',
+                'input_type'       => 'single_select',
+                'sort_order'       => 1,
+                'is_quiz_question' => 1,
+                'terms'            => [
+                    ['term_slug' => 'oily', 'label' => 'Oily', 'sort_order' => 1],
+                    ['term_slug' => 'dry', 'label' => 'Dry', 'sort_order' => 2],
+                    ['term_slug' => 'combination', 'label' => 'Combination', 'sort_order' => 3],
+                    ['term_slug' => 'normal', 'label' => 'Normal', 'sort_order' => 4],
+                    ['term_slug' => 'sensitive', 'label' => 'Sensitive', 'sort_order' => 5],
+                ],
+            ],
+            [
+                'attribute_code'   => 'skin_tone',
+                'label'            => 'Skin Tone',
+                'category'         => 'quiz_profile',
+                'description'      => 'Which skin tone is closest to yours?',
+                'input_type'       => 'single_select',
+                'sort_order'       => 2,
+                'is_quiz_question' => 1,
+                'terms'            => [
+                    ['term_slug' => 'fair', 'label' => 'Fair', 'swatch_color' => '#F6E5D7', 'sort_order' => 1],
+                    ['term_slug' => 'light', 'label' => 'Light', 'swatch_color' => '#E8CEB8', 'sort_order' => 2],
+                    ['term_slug' => 'medium', 'label' => 'Medium', 'swatch_color' => '#C9A382', 'sort_order' => 3],
+                    ['term_slug' => 'tan', 'label' => 'Tan', 'swatch_color' => '#B9855D', 'sort_order' => 4],
+                    ['term_slug' => 'deep', 'label' => 'Deep', 'swatch_color' => '#6F4A32', 'sort_order' => 5],
+                ],
+            ],
+            [
+                'attribute_code'   => 'skin_concern',
+                'label'            => 'Skin Concerns',
+                'category'         => 'quiz_profile',
+                'description'      => 'What would you like to focus on?',
+                'input_type'       => 'multi_select',
+                'sort_order'       => 3,
+                'is_quiz_question' => 1,
+                'terms'            => [
+                    ['term_slug' => 'acne', 'label' => 'Acne', 'sort_order' => 1],
+                    ['term_slug' => 'fine_lines', 'label' => 'Fine Lines', 'sort_order' => 2],
+                    ['term_slug' => 'hyperpigmentation', 'label' => 'Hyperpigmentation', 'sort_order' => 3],
+                    ['term_slug' => 'dullness', 'label' => 'Dullness', 'sort_order' => 4],
+                    ['term_slug' => 'redness', 'label' => 'Redness', 'sort_order' => 5],
+                    ['term_slug' => 'large_pores', 'label' => 'Large Pores', 'sort_order' => 6],
+                ],
+            ],
+        ];
+
+        foreach ($quiz_attributes as $attr) {
+            Tvak_Master_Data::save_attribute($attr);
+            foreach ($attr['terms'] as $term) {
+                Tvak_Master_Data::save_term(array_merge($term, [
+                    'attribute_code' => $attr['attribute_code'],
+                    'description'    => $term['description'] ?? '',
+                    'swatch_color'   => $term['swatch_color'] ?? '',
+                    'is_active'      => 1,
+                ]));
+            }
+        }
+
+        update_option('tvak_sensitive_profile_terms', ['sensitive', 'redness']);
     }
 
     /**
@@ -315,6 +406,11 @@ class Tvak_DB {
             $attr_code = sanitize_key($taxonomy);
             $label = !empty($attribute->attribute_label) ? $attribute->attribute_label : $attribute->attribute_name;
 
+            if (self::is_quiz_attribute($attr_code)) {
+                $sort_order++;
+                continue;
+            }
+
             if (class_exists('Tvak_Master_Data')) {
                 Tvak_Master_Data::save_attribute([
                     'attribute_code' => $attr_code,
@@ -323,6 +419,7 @@ class Tvak_DB {
                     'description'    => '',
                     'input_type'     => 'single_select',
                     'sort_order'     => $sort_order,
+                    'is_quiz_question' => 0,
                     'is_active'      => 1,
                 ]);
             }
@@ -417,6 +514,9 @@ class Tvak_DB {
                 if ($attr_code === '') {
                     continue;
                 }
+                if (self::is_quiz_attribute($attr_code)) {
+                    continue;
+                }
 
                 if (!isset($local_attrs[$attr_code])) {
                     $local_attrs[$attr_code] = [
@@ -445,6 +545,7 @@ class Tvak_DB {
                     'description'    => '',
                     'input_type'     => 'single_select',
                     'sort_order'     => $sort_order,
+                    'is_quiz_question' => 0,
                     'is_active'      => 1,
                 ]);
             }
@@ -482,5 +583,20 @@ class Tvak_DB {
 
             $sort_order++;
         }
+    }
+
+    /**
+     * Check whether an attribute is reserved for shopper-facing quiz questions.
+     *
+     * @param string $attribute_code Attribute code.
+     * @return bool
+     */
+    private static function is_quiz_attribute(string $attribute_code): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'tvak_master_attributes';
+
+        return (bool) $wpdb->get_var(
+            $wpdb->prepare("SELECT attribute_id FROM {$table} WHERE attribute_code = %s AND is_quiz_question = 1 LIMIT 1", sanitize_key($attribute_code))
+        );
     }
 }

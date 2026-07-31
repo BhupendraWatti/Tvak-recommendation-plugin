@@ -90,6 +90,37 @@ class Tvak_Master_Data {
     }
 
     /**
+     * Retrieve only shopper-facing quiz attributes.
+     *
+     * @param bool $active_only If true, only return active attributes and terms.
+     * @return array
+     */
+    public static function get_quiz_attributes(bool $active_only = true): array {
+        global $wpdb;
+        $attr_table = self::get_attr_table();
+
+        $where = $active_only ? "WHERE is_active = 1 AND is_quiz_question = 1" : "WHERE is_quiz_question = 1";
+        $attributes = $wpdb->get_results(
+            "SELECT attribute_code FROM {$attr_table} {$where} ORDER BY sort_order ASC, attribute_id ASC",
+            ARRAY_A
+        );
+
+        if (empty($attributes)) {
+            return [];
+        }
+
+        $quiz_attributes = [];
+        foreach ($attributes as $attr) {
+            $full_attr = self::get_attribute_by_code($attr['attribute_code'], $active_only);
+            if ($full_attr) {
+                $quiz_attributes[] = $full_attr;
+            }
+        }
+
+        return $quiz_attributes;
+    }
+
+    /**
      * Retrieve master attribute by code with terms.
      *
      * @param string $code Attribute machine key.
@@ -142,6 +173,7 @@ class Tvak_Master_Data {
         $description = isset($data['description']) ? sanitize_text_field($data['description']) : null;
         $input_type  = sanitize_text_field($data['input_type'] ?? 'single_select');
         $sort_order  = isset($data['sort_order']) ? (int) $data['sort_order'] : 0;
+        $is_quiz_question = isset($data['is_quiz_question']) ? (int) $data['is_quiz_question'] : 0;
         $is_active   = isset($data['is_active']) ? (int) $data['is_active'] : 1;
 
         $existing_id = $wpdb->get_var($wpdb->prepare("SELECT attribute_id FROM {$table} WHERE attribute_code = %s", $code));
@@ -155,10 +187,11 @@ class Tvak_Master_Data {
                     'description' => $description,
                     'input_type'  => $input_type,
                     'sort_order'  => $sort_order,
+                    'is_quiz_question' => $is_quiz_question,
                     'is_active'   => $is_active,
                 ],
                 ['attribute_id' => $existing_id],
-                ['%s', '%s', '%s', '%s', '%d', '%d'],
+                ['%s', '%s', '%s', '%s', '%d', '%d', '%d'],
                 ['%d']
             );
             return (int) $existing_id;
@@ -173,9 +206,10 @@ class Tvak_Master_Data {
                 'description'    => $description,
                 'input_type'     => $input_type,
                 'sort_order'     => $sort_order,
+                'is_quiz_question' => $is_quiz_question,
                 'is_active'      => $is_active,
             ],
-            ['%s', '%s', '%s', '%s', '%s', '%d', '%d']
+            ['%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d']
         );
 
         return (int) $wpdb->insert_id;
