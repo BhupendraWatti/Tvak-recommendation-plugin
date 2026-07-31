@@ -87,6 +87,21 @@ class Tvak_Product_Shade {
             return 0;
         }
 
+        // Direction B Sync: If variation_id is missing or new, auto-create/update WooCommerce product_variation post
+        if (class_exists('Tvak_Shade_Sync')) {
+            $synced_var_id = Tvak_Shade_Sync::sync_tvak_shade_to_wc([
+                'product_id'   => $product_id,
+                'variation_id' => $variation_id,
+                'shade_name'   => $shade_name,
+                'shade_hex'    => $shade_hex,
+                'price'        => $price,
+                'is_in_stock'  => $is_in_stock,
+            ]);
+            if ($synced_var_id && !$variation_id) {
+                $variation_id = $synced_var_id;
+            }
+        }
+
         // Check if row already exists for this product + shade_name to prevent duplicate inserts
         if (!$shade_id) {
             $existing_id = $wpdb->get_var(

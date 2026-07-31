@@ -69,6 +69,7 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-rule.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-shade.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-shade-sync.php';
 
         // Load Engine Classes
         require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-user-profile.php';
@@ -100,6 +101,7 @@ final class Tvak_Beauty_Kit {
 
         Tvak_Shortcode::init();
         Tvak_WooCommerce::init();
+        Tvak_Shade_Sync::init();
 
         // Elementor Widget Registration Hook
         add_action('elementor/widgets/register', [$this, 'register_elementor_widget']);

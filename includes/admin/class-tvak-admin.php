@@ -965,6 +965,11 @@ class Tvak_Admin {
             return;
         }
 
+        // Auto-heal & auto-sync WooCommerce product variations into wp_tvak_product_shades
+        if (class_exists('Tvak_Shade_Sync')) {
+            Tvak_Shade_Sync::auto_sync_catalog();
+        }
+
         $wc_products = get_posts([
             'post_type'      => 'product',
             'posts_per_page' => -1,
