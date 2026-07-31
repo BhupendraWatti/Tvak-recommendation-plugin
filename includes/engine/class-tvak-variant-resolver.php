@@ -17,8 +17,6 @@ class Tvak_Variant_Resolver {
     /**
      * Calibrated Shade Hex Color Mapping Matrix
      *
-     * Maps shade names and keywords to luxury cosmetic hex colors.
-     *
      * @param string $shade_name Raw shade string or variation attribute.
      * @return string Hex color code.
      */
@@ -94,7 +92,7 @@ class Tvak_Variant_Resolver {
             return Tvak_Shade_Sync::get_default_hex();
         }
 
-        return '#D4AF37';
+        return '';
     }
 
     /**
@@ -103,13 +101,7 @@ class Tvak_Variant_Resolver {
      * @return string Data URI SVG image.
      */
     public static function get_fallback_image_url(): string {
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">'
-             . '<rect width="100%" height="100%" fill="#16161A"/>'
-             . '<circle cx="100" cy="100" r="70" stroke="#D4AF37" stroke-width="1.5" fill="none" opacity="0.4"/>'
-             . '<path d="M100 45 L115 80 L155 85 L125 112 L132 152 L100 133 L68 152 L75 112 L45 85 L85 80 Z" fill="none" stroke="#D4AF37" stroke-width="2"/>'
-             . '<text x="100" y="175" fill="#D4AF37" font-size="12" font-family="sans-serif" text-anchor="middle" letter-spacing="2">TVAK LUXURY</text>'
-             . '</svg>';
-        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+        return function_exists('wc_placeholder_img_src') ? (string) wc_placeholder_img_src('medium') : '';
     }
 
     /**
@@ -129,8 +121,8 @@ class Tvak_Variant_Resolver {
 
         $is_in_stock     = true;
         $shade_name      = '';
-        $price           = 49.00; // Default fallback price
-        $price_formatted = '$49.00';
+        $price           = 0.0;
+        $price_formatted = function_exists('wc_price') ? wc_price(0) : '0.00';
         $image_url       = self::get_fallback_image_url();
         $all_shades      = [];
 

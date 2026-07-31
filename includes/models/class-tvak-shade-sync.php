@@ -52,7 +52,7 @@ class Tvak_Shade_Sync {
      * Priority order:
      *  1. wp_option tvak_default_shade_hex (admin-editable from TVAK Settings)
      *  2. shade_hex column DEFAULT from wp_tvak_product_shades (read once, statically cached)
-     *  3. Emergency fallback '#D4AF37' only if DB cannot be read at all
+     *  3. Empty string when no configured fallback exists
      *
      * @return string Valid 3-6 char hex string (with leading #).
      */
@@ -67,7 +67,7 @@ class Tvak_Shade_Sync {
         if ($db_default === null) {
             global $wpdb;
             $col = $wpdb->get_row("SHOW COLUMNS FROM {$wpdb->prefix}tvak_product_shades LIKE 'shade_hex'");
-            $db_default = ($col && !empty($col->Default)) ? $col->Default : '#D4AF37';
+            $db_default = ($col && isset($col->Default)) ? (string) $col->Default : '';
         }
 
         return $db_default;
@@ -353,7 +353,7 @@ class Tvak_Shade_Sync {
                 }
             }
 
-            // Fallback: parse last segment of title (e.g. "Product Name - Bubble Gum")
+            // Fallback: parse last segment of a standard variation title.
             if (empty($shade_name)) {
                 $parts      = explode(' - ', $variation_post->post_title, 2);
                 $shade_name = isset($parts[1]) ? trim($parts[1]) : trim(end(explode('-', $variation_post->post_title)));
@@ -761,35 +761,31 @@ class Tvak_Shade_Sync {
     }
 
     /**
-     * Auto-detect appropriate Kit Slot for a WooCommerce product based on categories/type/tags.
-     * Slot 1: Cleanser / Purify
-     * Slot 2: Treatment Cream / Hydration
-     * Slot 3: Complexion / BB Cream
-     * Slot 4: Setting Spray / Finish
-     * Slot 5: Universal Accent / Color (Lipstick, Eyeliner, Blush, Kajal)
+     * Resolve the recommendation slot for a WooCommerce product from categories.
      */
     public static function detect_product_kit_slot(int $product_id): int {
-        $terms = wp_get_post_terms($product_id, ['product_cat', 'product_tag', 'pa_product-type'], ['fields' => 'names']);
-        $text  = strtolower(implode(' ', is_wp_error($terms) ? [] : $terms));
-        
-        $title     = get_the_title($product_id);
-        $full_text = strtolower($title . ' ' . $text);
+        global $wpdb;
+        $table_slots = $wpdb->prefix . 'tvak_kit_slots';
 
-        if (preg_match('/cleans|balm|wash|purif|remover/', $full_text)) {
-            return 1; // Slot 1: Cleanser
-        }
-        if (preg_match('/\bbb\b|complexion|tint|foundation|\bcc\b|skin finish/', $full_text)) {
-            return 3; // Slot 3: Complexion BB
-        }
-        if (preg_match('/cream|moistur|serum|hydrat|treatment|compound/', $full_text)) {
-            return 2; // Slot 2: Cream
-        }
-        if (preg_match('/spray|setting|finish|mist|fixer/', $full_text)) {
-            return 4; // Slot 4: Setting Spray
+        $terms = function_exists('wp_get_post_terms')
+            ? wp_get_post_terms($product_id, ['product_cat'], ['fields' => 'all'])
+            : [];
+
+        if (!empty($terms) && !is_wp_error($terms)) {
+            foreach ($terms as $term) {
+                $slot_code = 'product_cat_' . sanitize_key($term->slug);
+                $slot_id = (int) $wpdb->get_var(
+                    $wpdb->prepare("SELECT slot_id FROM {$table_slots} WHERE slot_code = %s", $slot_code)
+                );
+                if ($slot_id) {
+                    return $slot_id;
+                }
+            }
         }
 
-        // Default to Slot 5: Universal Accent (Lipsticks, Eyeliners, Cosmetics)
-        return 5;
+        return (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT slot_id FROM {$table_slots} WHERE slot_code = %s", 'woocommerce_products')
+        );
     }
 
     /**

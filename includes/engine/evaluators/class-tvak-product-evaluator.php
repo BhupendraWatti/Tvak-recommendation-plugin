@@ -107,32 +107,36 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
         $title      = get_the_title($product_id);
 
         $label_map = class_exists('Tvak_Master_Data') ? Tvak_Master_Data::get_terms_label_map() : [];
+        $profile_values = $profile->to_array();
+        $matched_labels = [];
 
-        $type_slug = $profile->get_skin_type();
-        $tone_slug = $profile->get_skin_tone();
+        foreach (($rule_data['attribute_rules'] ?? []) as $attribute_code => $rule_info) {
+            if (empty($profile_values[$attribute_code])) {
+                continue;
+            }
 
-        $type_label = $label_map['skin_type'][$type_slug] ?? ucfirst(str_replace('_', ' ', $type_slug));
-        $tone_label = $label_map['skin_tone'][$tone_slug] ?? ucwords(str_replace('_', ' ', $tone_slug));
-
-        $concern_labels = [];
-        foreach ($profile->get_skin_concerns() as $c_slug) {
-            $concern_labels[] = $label_map['skin_concern'][$c_slug] ?? ucwords(str_replace('_', ' ', $c_slug));
+            $raw_value = $profile_values[$attribute_code];
+            $values = is_array($raw_value) ? $raw_value : [$raw_value];
+            foreach ($values as $value) {
+                $value = sanitize_key($value);
+                if ($value === '') {
+                    continue;
+                }
+                $matched_labels[] = $label_map[$attribute_code][$value] ?? ucwords(str_replace(['_', '-'], ' ', $value));
+            }
         }
 
-        if (!empty($concern_labels)) {
+        if (!empty($matched_labels)) {
             return sprintf(
-                __('%s was specially selected for your %s skin profile to directly target %s with optimal formula balance.', 'tvak-beauty-kit'),
+                __('%s was selected based on your profile: %s.', 'tvak-beauty-kit'),
                 $title,
-                $type_label,
-                implode(', ', $concern_labels)
+                implode(', ', array_unique($matched_labels))
             );
         }
 
         return sprintf(
-            __('%s is harmonized with your %s skin type and %s skin tone for a radiant, balanced finish.', 'tvak-beauty-kit'),
-            $title,
-            $type_label,
-            $tone_label
+            __('%s was selected from your WooCommerce catalog.', 'tvak-beauty-kit'),
+            $title
         );
     }
 }

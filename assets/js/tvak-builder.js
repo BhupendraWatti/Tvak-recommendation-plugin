@@ -103,90 +103,24 @@
               });
               self.renderLayout();
             } else {
-              self._applyStaticFallback();
+              self.renderConfigurationError();
             }
           },
           error: function() {
-            self._applyStaticFallback();
+            self.renderConfigurationError();
           }
         });
       }, 3000);
     },
 
-    /**
-     * Last-resort static fallback quiz config.
-     * Used only when /quiz-config is unreachable after two attempts.
-     * Keep in sync with wp_tvak_master_terms DB seed data.
-     * Default profile values are derived dynamically from the first term of each
-     * step — not hardcoded slugs — so adding a new option to DB still works here.
-     */
-    _applyStaticFallback: function() {
+    renderConfigurationError: function() {
       var self = this;
-      console.warn('TVAK: quiz-config API unreachable. Falling back to static snapshot. ' +
-        'Update the DB seed and this snapshot together.');
-
-      self.quizConfig = {
-        total_steps: 3,
-        steps: [
-          {
-            step: 1,
-            attribute_code: 'skin_type',
-            heading: 'Step 1: What is your primary Skin Type?',
-            subheading: 'Select your primary skin type',
-            input_type: 'single_select',
-            terms: [
-              { term_slug: 'dry', label: 'Dry', description: 'Tightness, flaking or dullness' },
-              { term_slug: 'oily', label: 'Oily', description: 'Excess shine & enlarged pores' },
-              { term_slug: 'normal', label: 'Normal', description: 'Well-balanced hydration' },
-              { term_slug: 'combination', label: 'Combination', description: 'Oily T-zone, normal/dry cheeks' },
-              { term_slug: 'sensitive', label: 'Sensitive', description: 'Easily irritated or red' }
-            ]
-          },
-          {
-            step: 2,
-            attribute_code: 'skin_tone',
-            heading: 'Step 2: Select your Skin Tone Group',
-            subheading: 'Select your skin tone group',
-            input_type: 'single_select',
-            terms: [
-              { term_slug: 'fair_light', label: 'Fair / Light', swatch_color: '#F6E5D7' },
-              { term_slug: 'light_medium', label: 'Light \u2013 Medium', swatch_color: '#E8CEB8' },
-              { term_slug: 'medium_deep', label: 'Medium \u2013 Deep', swatch_color: '#C9A382' },
-              { term_slug: 'deep_rich', label: 'Deep & Rich', swatch_color: '#8D5B3A' },
-              { term_slug: 'very_deep', label: 'Very Deep', swatch_color: '#4F301F' }
-            ]
-          },
-          {
-            step: 3,
-            attribute_code: 'skin_concern',
-            heading: 'Step 3: What are your target Skin Concerns?',
-            subheading: 'Select all that apply',
-            input_type: 'multi_select',
-            terms: [
-              { term_slug: 'acne', label: 'Acne & Breakouts' },
-              { term_slug: 'dry_dehydrated', label: 'Dry & Dehydrated' },
-              { term_slug: 'oily_enlarged_pores', label: 'Oily & Enlarged Pores' },
-              { term_slug: 'sensitive', label: 'Sensitivity & Redness' },
-              { term_slug: 'hyperpigmentation', label: 'Hyperpigmentation & Dark Spots' },
-              { term_slug: 'uneven_texture', label: 'Uneven Texture' },
-              { term_slug: 'fine_lines_wrinkles', label: 'Fine Lines & Wrinkles' }
-            ]
-          }
-        ]
-      };
-
-      self.totalSteps = self.quizConfig.total_steps;
-
-      // Derive default profile dynamically from first available term of each step
-      self.quizConfig.steps.forEach(function(s) {
-        if (s.input_type === 'multi_select') {
-          self.profile[s.attribute_code] = [];
-        } else {
-          self.profile[s.attribute_code] = (s.terms.length > 0) ? s.terms[0].term_slug : '';
-        }
-      });
-
-      self.renderLayout();
+      self.$container.html(`
+        <div class="tvak-consultation-loading" style="padding:60px 20px; text-align:center;">
+          <h3 class="tvak-step-heading">Quiz configuration is unavailable</h3>
+          <p style="color:#A0A0A8;">Create WooCommerce product attributes, then run TVAK catalog sync from WordPress admin.</p>
+        </div>
+      `);
     },
 
     renderLayout: function() {
@@ -385,7 +319,7 @@
             var isActive = (sh.variation_id == item.variation_id || sh.shade_name === item.shade_name);
             var activeClass = isActive ? 'active' : '';
             var disabledClass = !sh.is_in_stock ? 'out-of-stock-swatch' : '';
-            var hex = sh.hex_color || '#D4AF37';
+            var hex = sh.hex_color || '';
             var safeShadeName = self.escapeHtml(sh.shade_name);
 
             swatchItemsHtml += `
@@ -393,7 +327,7 @@
                    data-item-idx="${idx}" 
                    data-shade-idx="${sIdx}"
                    title="${safeShadeName} ${!sh.is_in_stock ? '(Out of Stock)' : ''}">
-                <span class="tvak-swatch-circle" style="background-color: ${hex};"></span>
+                <span class="tvak-swatch-circle" style="${hex ? `background-color: ${hex};` : ''}"></span>
                 ${!sh.is_in_stock ? '<span class="tvak-swatch-slash"></span>' : ''}
               </div>
             `;
@@ -410,12 +344,12 @@
             </div>
           `;
         } else if (renderShades && item.shade_name) {
-          var hexColor = item.shade_hex || '#D4AF37';
+          var hexColor = item.shade_hex || '';
           swatchesHtml = `
             <div class="tvak-shades-picker-area">
               <div class="tvak-shade-picker-label" style="display:flex; align-items:center; gap:8px;">
                 <strong>Shade:</strong> 
-                <span class="tvak-swatch-circle inline-swatch" style="background-color: ${hexColor};"></span>
+                ${hexColor ? `<span class="tvak-swatch-circle inline-swatch" style="background-color: ${hexColor};"></span>` : ''}
                 <span class="tvak-current-shade-name">${self.escapeHtml(item.shade_name)}</span>
               </div>
             </div>
@@ -423,7 +357,7 @@
         }
 
         // Price Badge HTML
-        var priceFormatted = item.price_formatted || ('$' + (item.price || 49.00).toFixed(2));
+        var priceFormatted = item.price_formatted || ((tvak_vars.currency_symbol || '') + (parseFloat(item.price || 0)).toFixed(2));
 
         itemsHtml += `
           <div class="tvak-kit-item-card ${cardSelectedClass} ${stockClass}" data-idx="${idx}">
@@ -497,7 +431,7 @@
 
       var subtotal = 0;
       selectedItems.forEach(function(item) {
-        subtotal += parseFloat(item.price || 49.00);
+        subtotal += parseFloat(item.price || 0);
       });
 
       // ── Dynamic Tiered Bundle Discount ──────────────────────────────────────

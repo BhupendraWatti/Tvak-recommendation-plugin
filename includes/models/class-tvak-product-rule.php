@@ -271,9 +271,16 @@ class Tvak_Product_Rule {
         $reconciled = 0;
         foreach ($unmapped_ids as $pid) {
             $product_id = (int) $pid;
-            $slot_id    = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::detect_product_kit_slot($product_id) : 5;
+            $slot_id    = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::detect_product_kit_slot($product_id) : 0;
+            if (!$slot_id && class_exists('Tvak_DB')) {
+                Tvak_DB::sync_wc_kit_slots();
+                $slot_id = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::detect_product_kit_slot($product_id) : 0;
+            }
+            if (!$slot_id) {
+                continue;
+            }
             
-            self::save_rule($product_id, $slot_id, 0.00, 1, []);
+            self::save_rule($product_id, $slot_id, 1.00, 1, [], 0.00);
 
             if (class_exists('Tvak_Shade_Sync')) {
                 Tvak_Shade_Sync::auto_sync_product_variations($product_id);

@@ -85,9 +85,9 @@ class Tvak_Elementor_Widget extends \Elementor\Widget_Base {
         $this->add_control(
             'accent_color',
             [
-                'label'   => __('Accent Gold Color', 'tvak-beauty-kit'),
+                'label'   => __('Accent Color', 'tvak-beauty-kit'),
                 'type'    => \Elementor\Controls_Manager::COLOR,
-                'default' => '#D4AF37',
+                'default' => get_option('tvak_default_shade_hex', ''),
             ]
         );
 

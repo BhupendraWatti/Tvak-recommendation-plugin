@@ -30,33 +30,6 @@ class Tvak_REST_API {
             'callback'            => [__CLASS__, 'handle_recommend'],
             'permission_callback' => '__return_true',
             'args'                => [
-                'skin_type' => [
-                    'type'              => 'string',
-                    'required'          => false,
-                    'default'           => 'normal',
-                    'sanitize_callback' => 'sanitize_key',
-                ],
-                'skin_tone' => [
-                    'type'              => 'string',
-                    'required'          => false,
-                    'default'           => 'fair_light',
-                    'sanitize_callback' => 'sanitize_key',
-                ],
-                'skin_concern' => [
-                    'type'              => 'array',
-                    'required'          => false,
-                    'default'           => [],
-                    'items'             => ['type' => 'string'],
-                    'sanitize_callback' => static function ($val) {
-                        return is_array($val) ? array_map('sanitize_key', $val) : [];
-                    },
-                ],
-                'undertone' => [
-                    'type'              => 'string',
-                    'required'          => false,
-                    'default'           => 'neutral',
-                    'sanitize_callback' => 'sanitize_key',
-                ],
                 'preferred_shades' => [
                     'type'              => 'object',
                     'required'          => false,
@@ -320,4 +293,3 @@ class Tvak_REST_API {
         );
     }
 }
-

@@ -46,7 +46,7 @@ class Tvak_Shortcode {
             // Dynamic accent colour from WP option — configurable in TVAK Settings
             'accent_color'    => class_exists('Tvak_Shade_Sync')
                                     ? Tvak_Shade_Sync::get_default_hex()
-                                    : (get_option('tvak_default_shade_hex') ?: '#D4AF37'),
+                                    : get_option('tvak_default_shade_hex', ''),
             // Live WooCommerce currency data — JS uses these for price formatting
             'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol()) : '₹',
             'currency_code'   => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'INR',

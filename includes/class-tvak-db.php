@@ -18,7 +18,7 @@ class Tvak_DB {
     /**
      * Current DB Version.
      */
-    const DB_VERSION = '1.2.0';
+    const DB_VERSION = '2.0.0';
 
     /**
      * Create or update custom database tables using dbDelta.
@@ -168,7 +168,7 @@ class Tvak_DB {
             product_id BIGINT UNSIGNED NOT NULL,
             variation_id BIGINT UNSIGNED NULL,
             shade_name VARCHAR(128) NOT NULL,
-            shade_hex VARCHAR(32) NOT NULL DEFAULT '#D4AF37',
+            shade_hex VARCHAR(32) NOT NULL DEFAULT '',
             price DECIMAL(10,2) NULL,
             image_url VARCHAR(255) NULL,
             is_in_stock TINYINT(1) NOT NULL DEFAULT 1,
@@ -178,6 +178,7 @@ class Tvak_DB {
             KEY variation_id (variation_id)
         ) {$charset_collate};";
         dbDelta($sql_shades);
+        $wpdb->query("ALTER TABLE {$table_shades} MODIFY shade_hex VARCHAR(32) NOT NULL DEFAULT ''");
 
         update_option('tvak_db_version', self::DB_VERSION);
     }
@@ -190,210 +191,8 @@ class Tvak_DB {
     public static function seed_defaults() {
         global $wpdb;
 
-        // Seed Kit Slots
-        $table_slots = $wpdb->prefix . 'tvak_kit_slots';
-        $default_slots = [
-            [
-                'slot_code'  => 'cleanser_balm',
-                'slot_name'  => 'Cleanser / Purification',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 1,
-            ],
-            [
-                'slot_code'  => 'compound_cream',
-                'slot_name'  => 'Treatment & Hydration Cream',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 2,
-            ],
-            [
-                'slot_code'  => 'bb_cream',
-                'slot_name'  => 'Complexion Finish (BB Cream)',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 3,
-            ],
-            [
-                'slot_code'  => 'setting_spray',
-                'slot_name'  => 'Setting Spray & Finish',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 4,
-            ],
-            [
-                'slot_code'  => 'lipstick_accent',
-                'slot_name'  => 'Lips & Color Accent',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 5,
-            ],
-            [
-                'slot_code'  => 'universal_eyeliner',
-                'slot_name'  => 'Eye Contour Accent',
-                'min_items'  => 1,
-                'max_items'  => 1,
-                'sort_order' => 6,
-            ],
-        ];
-
-        foreach ($default_slots as $slot) {
-            $existing = $wpdb->get_var(
-                $wpdb->prepare("SELECT slot_id FROM {$table_slots} WHERE slot_code = %s", $slot['slot_code'])
-            );
-            if (!$existing) {
-                $wpdb->insert($table_slots, $slot);
-            }
-        }
-
-        // Seed Master Attributes
-        $table_master_attr = $wpdb->prefix . 'tvak_master_attributes';
-        $table_master_terms = $wpdb->prefix . 'tvak_master_terms';
-
-        $master_attributes = [
-            [
-                'attribute_code' => 'skin_type',
-                'label'          => 'Skin Type',
-                'category'       => 'dermatological',
-                'description'    => 'Select your primary skin type',
-                'input_type'     => 'single_select',
-                'sort_order'     => 1,
-                'terms'          => [
-                    ['term_slug' => 'dry', 'label' => 'Dry', 'description' => 'Tightness, flaking or dullness', 'sort_order' => 1],
-                    ['term_slug' => 'oily', 'label' => 'Oily', 'description' => 'Excess shine & enlarged pores', 'sort_order' => 2],
-                    ['term_slug' => 'normal', 'label' => 'Normal', 'description' => 'Well-balanced hydration', 'sort_order' => 3],
-                    ['term_slug' => 'combination', 'label' => 'Combination', 'description' => 'Oily T-zone, normal/dry cheeks', 'sort_order' => 4],
-                    ['term_slug' => 'sensitive', 'label' => 'Sensitive', 'description' => 'Easily irritated or red', 'sort_order' => 5],
-                ],
-            ],
-            [
-                'attribute_code' => 'skin_tone',
-                'label'          => 'Skin Tone',
-                'category'       => 'cosmetic',
-                'description'    => 'Select your skin tone group',
-                'input_type'     => 'single_select',
-                'sort_order'     => 2,
-                'terms'          => [
-                    ['term_slug' => 'fair_light', 'label' => 'Fair / Light', 'swatch_color' => '#F6E5D7', 'sort_order' => 1],
-                    ['term_slug' => 'light_medium', 'label' => 'Light – Medium', 'swatch_color' => '#E8CEB8', 'sort_order' => 2],
-                    ['term_slug' => 'medium_deep', 'label' => 'Medium – Deep', 'swatch_color' => '#C9A382', 'sort_order' => 3],
-                    ['term_slug' => 'deep_rich', 'label' => 'Deep & Rich', 'swatch_color' => '#8D5B3A', 'sort_order' => 4],
-                    ['term_slug' => 'very_deep', 'label' => 'Very Deep', 'swatch_color' => '#4F301F', 'sort_order' => 5],
-                ],
-            ],
-            [
-                'attribute_code' => 'skin_concern',
-                'label'          => 'Skin Concerns',
-                'category'       => 'dermatological',
-                'description'    => 'What are your target skin concerns?',
-                'input_type'     => 'multi_select',
-                'sort_order'     => 3,
-                'terms'          => [
-                    ['term_slug' => 'acne', 'label' => 'Acne & Breakouts', 'sort_order' => 1],
-                    ['term_slug' => 'dry_dehydrated', 'label' => 'Dry & Dehydrated', 'sort_order' => 2],
-                    ['term_slug' => 'oily_enlarged_pores', 'label' => 'Oily & Enlarged Pores', 'sort_order' => 3],
-                    ['term_slug' => 'sensitive', 'label' => 'Sensitivity & Redness', 'sort_order' => 4],
-                    ['term_slug' => 'hyperpigmentation', 'label' => 'Hyperpigmentation & Dark Spots', 'sort_order' => 5],
-                    ['term_slug' => 'uneven_texture', 'label' => 'Uneven Texture', 'sort_order' => 6],
-                    ['term_slug' => 'fine_lines_wrinkles', 'label' => 'Fine Lines & Wrinkles', 'sort_order' => 7],
-                ],
-            ],
-        ];
-
-        foreach ($master_attributes as $attr) {
-            $attr_code = $attr['attribute_code'];
-            $existing_attr = $wpdb->get_var(
-                $wpdb->prepare("SELECT attribute_id FROM {$table_master_attr} WHERE attribute_code = %s", $attr_code)
-            );
-
-            if (!$existing_attr) {
-                $wpdb->insert($table_master_attr, [
-                    'attribute_code' => $attr_code,
-                    'label'          => $attr['label'],
-                    'category'       => $attr['category'],
-                    'description'    => $attr['description'],
-                    'input_type'     => $attr['input_type'],
-                    'sort_order'     => $attr['sort_order'],
-                    'is_active'      => 1,
-                ]);
-            }
-
-            foreach ($attr['terms'] as $term) {
-                $term_slug = $term['term_slug'];
-                $existing_term = $wpdb->get_var(
-                    $wpdb->prepare(
-                        "SELECT term_id FROM {$table_master_terms} WHERE attribute_code = %s AND term_slug = %s",
-                        $attr_code,
-                        $term_slug
-                    )
-                );
-
-                if (!$existing_term) {
-                    $wpdb->insert($table_master_terms, [
-                        'attribute_code' => $attr_code,
-                        'term_slug'      => $term_slug,
-                        'label'          => $term['label'],
-                        'description'    => $term['description'] ?? null,
-                        'swatch_color'   => $term['swatch_color'] ?? null,
-                        'icon_url'       => $term['icon_url'] ?? null,
-                        'sort_order'     => $term['sort_order'] ?? 0,
-                        'is_active'      => 1,
-                    ]);
-                }
-            }
-        }
-
-        // Seed Legacy Attribute Registry Table for Backward Compatibility
-        $table_attributes = $wpdb->prefix . 'tvak_attribute_registry';
-        $default_attributes = [
-            [
-                'attribute_code' => 'skin_type',
-                'label'          => 'Skin Type',
-                'category'       => 'dermatological',
-                'options_json'   => wp_json_encode([
-                    'dry'         => 'Dry',
-                    'oily'        => 'Oily',
-                    'normal'      => 'Normal',
-                    'combination' => 'Combination',
-                    'sensitive'   => 'Sensitive',
-                ]),
-            ],
-            [
-                'attribute_code' => 'skin_tone',
-                'label'          => 'Skin Tone',
-                'category'       => 'cosmetic',
-                'options_json'   => wp_json_encode([
-                    'fair_light'        => 'Fair / Light',
-                    'light_medium'      => 'Light – Medium / Medium',
-                    'medium_deep'       => 'Medium – Deep',
-                    'deep_rich'         => 'Deep & Rich',
-                    'very_deep'         => 'Very Deep',
-                ]),
-            ],
-            [
-                'attribute_code' => 'skin_concern',
-                'label'          => 'Skin Concerns',
-                'category'       => 'dermatological',
-                'options_json'   => wp_json_encode([
-                    'acne'                => 'Acne',
-                    'dry_dehydrated'      => 'Dry & Dehydrated',
-                    'oily_enlarged_pores' => 'Oily & Enlarged Pores',
-                    'sensitive'           => 'Sensitive',
-                    'hyperpigmentation'   => 'Hyperpigmentation & Dark Spots',
-                    'uneven_texture'      => 'Uneven Texture',
-                    'fine_lines_wrinkles' => 'Fine Lines & Wrinkles',
-                ]),
-            ],
-        ];
-
-        foreach ($default_attributes as $attr) {
-            $existing = $wpdb->get_var(
-                $wpdb->prepare("SELECT attribute_id FROM {$table_attributes} WHERE attribute_code = %s", $attr['attribute_code'])
-            );
-            if (!$existing) {
-                $wpdb->insert($table_attributes, $attr);
-            }
-        }
+        self::sync_wc_kit_slots();
+        self::sync_wc_master_data();
 
         // Run automated seeding & linking for WooCommerce Variations and Product Shades
         self::seed_product_shades();
@@ -424,5 +223,264 @@ class Tvak_DB {
             Tvak_Product_Rule::auto_reconcile_unmapped_products();
         }
     }
-}
 
+    /**
+     * Create recommendation slots from WooCommerce product categories.
+     *
+     * @return void
+     */
+    public static function sync_wc_kit_slots(): void {
+        global $wpdb;
+        $table_slots = $wpdb->prefix . 'tvak_kit_slots';
+
+        $terms = [];
+        if (function_exists('get_terms')) {
+            $terms = get_terms([
+                'taxonomy'   => 'product_cat',
+                'hide_empty' => false,
+                'orderby'    => 'name',
+                'order'      => 'ASC',
+            ]);
+        }
+
+        if (!empty($terms) && !is_wp_error($terms)) {
+            $order = 1;
+            foreach ($terms as $term) {
+                $slot_code = 'product_cat_' . sanitize_key($term->slug);
+                $existing = $wpdb->get_var(
+                    $wpdb->prepare("SELECT slot_id FROM {$table_slots} WHERE slot_code = %s", $slot_code)
+                );
+
+                $data = [
+                    'slot_code'  => $slot_code,
+                    'slot_name'  => $term->name,
+                    'min_items'  => 0,
+                    'max_items'  => 1,
+                    'sort_order' => $order++,
+                ];
+
+                if ($existing) {
+                    $wpdb->update($table_slots, $data, ['slot_id' => (int) $existing], ['%s', '%s', '%d', '%d', '%d'], ['%d']);
+                } else {
+                    $wpdb->insert($table_slots, $data, ['%s', '%s', '%d', '%d', '%d']);
+                }
+            }
+        }
+
+        $fallback_exists = (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT slot_id FROM {$table_slots} WHERE slot_code = %s", 'woocommerce_products')
+        );
+        if (!$fallback_exists) {
+            $next_order = (int) $wpdb->get_var("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM {$table_slots}");
+            $wpdb->insert(
+                $table_slots,
+                [
+                    'slot_code'  => 'woocommerce_products',
+                    'slot_name'  => __('WooCommerce Products', 'tvak-beauty-kit'),
+                    'min_items'  => 0,
+                    'max_items'  => 1,
+                    'sort_order' => max(1, $next_order),
+                ],
+                ['%s', '%s', '%d', '%d', '%d']
+            );
+        }
+    }
+
+    /**
+     * Mirror WooCommerce global product attributes into TVAK master data.
+     *
+     * @return void
+     */
+    public static function sync_wc_master_data(): void {
+        if (!function_exists('wc_get_attribute_taxonomies')) {
+            return;
+        }
+
+        global $wpdb;
+        $table_attributes = $wpdb->prefix . 'tvak_attribute_registry';
+
+        $sort_order = 1;
+        $attribute_taxonomies = wc_get_attribute_taxonomies();
+        if (empty($attribute_taxonomies)) {
+            self::sync_wc_local_product_attributes($sort_order);
+            return;
+        }
+
+        foreach ($attribute_taxonomies as $attribute) {
+            $taxonomy = wc_attribute_taxonomy_name($attribute->attribute_name);
+            if (!taxonomy_exists($taxonomy)) {
+                continue;
+            }
+
+            $attr_code = sanitize_key($taxonomy);
+            $label = !empty($attribute->attribute_label) ? $attribute->attribute_label : $attribute->attribute_name;
+
+            if (class_exists('Tvak_Master_Data')) {
+                Tvak_Master_Data::save_attribute([
+                    'attribute_code' => $attr_code,
+                    'label'          => $label,
+                    'category'       => 'woocommerce',
+                    'description'    => '',
+                    'input_type'     => 'single_select',
+                    'sort_order'     => $sort_order,
+                    'is_active'      => 1,
+                ]);
+            }
+
+            $terms = get_terms([
+                'taxonomy'   => $taxonomy,
+                'hide_empty' => false,
+                'orderby'    => 'name',
+                'order'      => 'ASC',
+            ]);
+
+            $options = [];
+            if (!empty($terms) && !is_wp_error($terms)) {
+                $term_order = 1;
+                foreach ($terms as $term) {
+                    $swatch_color = class_exists('Tvak_Shade_Sync')
+                        ? Tvak_Shade_Sync::get_term_swatch_color($term->term_id, $taxonomy)
+                        : '';
+                    $options[$term->slug] = $term->name;
+
+                    if (class_exists('Tvak_Master_Data')) {
+                        Tvak_Master_Data::save_term([
+                            'attribute_code' => $attr_code,
+                            'term_slug'      => $term->slug,
+                            'label'          => $term->name,
+                            'description'    => $term->description,
+                            'swatch_color'   => $swatch_color,
+                            'sort_order'     => $term_order++,
+                            'is_active'      => 1,
+                        ]);
+                    }
+                }
+            }
+
+            $legacy = [
+                'attribute_code' => $attr_code,
+                'label'          => $label,
+                'category'       => 'woocommerce',
+                'options_json'   => wp_json_encode($options),
+            ];
+            $existing = $wpdb->get_var(
+                $wpdb->prepare("SELECT attribute_id FROM {$table_attributes} WHERE attribute_code = %s", $attr_code)
+            );
+
+            if ($existing) {
+                $wpdb->update($table_attributes, $legacy, ['attribute_id' => (int) $existing], ['%s', '%s', '%s', '%s'], ['%d']);
+            } else {
+                $wpdb->insert($table_attributes, $legacy, ['%s', '%s', '%s', '%s']);
+            }
+
+            $sort_order++;
+        }
+
+        self::sync_wc_local_product_attributes($sort_order);
+    }
+
+    /**
+     * Mirror local product attributes typed directly on WooCommerce products.
+     *
+     * @param int $sort_order Starting order after global attributes.
+     * @return void
+     */
+    public static function sync_wc_local_product_attributes(int $sort_order = 1): void {
+        global $wpdb;
+        $table_attributes = $wpdb->prefix . 'tvak_attribute_registry';
+
+        $rows = $wpdb->get_results("
+            SELECT post_id, meta_value
+            FROM {$wpdb->prefix}postmeta
+            WHERE meta_key = '_product_attributes'
+              AND meta_value != ''
+        ", ARRAY_A);
+
+        if (empty($rows)) {
+            return;
+        }
+
+        $local_attrs = [];
+        foreach ($rows as $row) {
+            $product_attrs = maybe_unserialize($row['meta_value']);
+            if (empty($product_attrs) || !is_array($product_attrs)) {
+                continue;
+            }
+
+            foreach ($product_attrs as $attr_key => $attr_def) {
+                if (!empty($attr_def['is_taxonomy'])) {
+                    continue;
+                }
+
+                $name = !empty($attr_def['name']) ? (string) $attr_def['name'] : (string) $attr_key;
+                $attr_code = sanitize_key($name);
+                if ($attr_code === '') {
+                    continue;
+                }
+
+                if (!isset($local_attrs[$attr_code])) {
+                    $local_attrs[$attr_code] = [
+                        'label' => $name,
+                        'terms' => [],
+                    ];
+                }
+
+                $raw_values = !empty($attr_def['value']) ? explode('|', (string) $attr_def['value']) : [];
+                foreach ($raw_values as $raw_value) {
+                    $label = trim($raw_value);
+                    if ($label === '') {
+                        continue;
+                    }
+                    $local_attrs[$attr_code]['terms'][sanitize_title($label)] = $label;
+                }
+            }
+        }
+
+        foreach ($local_attrs as $attr_code => $attr) {
+            if (class_exists('Tvak_Master_Data')) {
+                Tvak_Master_Data::save_attribute([
+                    'attribute_code' => $attr_code,
+                    'label'          => $attr['label'],
+                    'category'       => 'woocommerce',
+                    'description'    => '',
+                    'input_type'     => 'single_select',
+                    'sort_order'     => $sort_order,
+                    'is_active'      => 1,
+                ]);
+            }
+
+            $term_order = 1;
+            foreach ($attr['terms'] as $term_slug => $label) {
+                if (class_exists('Tvak_Master_Data')) {
+                    Tvak_Master_Data::save_term([
+                        'attribute_code' => $attr_code,
+                        'term_slug'      => $term_slug,
+                        'label'          => $label,
+                        'description'    => '',
+                        'swatch_color'   => '',
+                        'sort_order'     => $term_order++,
+                        'is_active'      => 1,
+                    ]);
+                }
+            }
+
+            $legacy = [
+                'attribute_code' => $attr_code,
+                'label'          => $attr['label'],
+                'category'       => 'woocommerce',
+                'options_json'   => wp_json_encode($attr['terms']),
+            ];
+            $existing = $wpdb->get_var(
+                $wpdb->prepare("SELECT attribute_id FROM {$table_attributes} WHERE attribute_code = %s", $attr_code)
+            );
+
+            if ($existing) {
+                $wpdb->update($table_attributes, $legacy, ['attribute_id' => (int) $existing], ['%s', '%s', '%s', '%s'], ['%d']);
+            } else {
+                $wpdb->insert($table_attributes, $legacy, ['%s', '%s', '%s', '%s']);
+            }
+
+            $sort_order++;
+        }
+    }
+}

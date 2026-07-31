@@ -61,8 +61,6 @@ class Tvak_Anti_Collision {
      * Each pair is an array [ingredient_a, ingredient_b]. When both ingredients are present
      * in the kit, the lower-scoring product is removed.
      *
-     * Default pair (always applied): ['retinoid', 'aha_bha']
-     *
      * @param array $selected_kit Items list [{product_id, score, ...}].
      * @return array Filtered safe kit items.
      */
@@ -71,21 +69,9 @@ class Tvak_Anti_Collision {
             return $selected_kit;
         }
 
-        // Load admin-configurable conflict pairs; default to the base Retinoid ↔ AHA/BHA pair
-        $conflict_pairs = get_option('tvak_ingredient_conflict_rules', [
-            ['retinoid', 'aha_bha'],
-        ]);
-
-        // Ensure the default pair is always present regardless of option corruption
-        $has_default = false;
-        foreach ($conflict_pairs as $pair) {
-            if (in_array('retinoid', $pair, true) && in_array('aha_bha', $pair, true)) {
-                $has_default = true;
-                break;
-            }
-        }
-        if (!$has_default) {
-            $conflict_pairs[] = ['retinoid', 'aha_bha'];
+        $conflict_pairs = get_option('tvak_ingredient_conflict_rules', []);
+        if (!is_array($conflict_pairs) || empty($conflict_pairs)) {
+            return $selected_kit;
         }
 
         // Build a quick product_id → {index, score, ingredient} map

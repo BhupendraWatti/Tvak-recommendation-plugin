@@ -77,7 +77,7 @@ class Tvak_Product_Shade {
         $product_id   = (int) ($data['product_id'] ?? 0);
         $variation_id = !empty($data['variation_id']) ? (int) $data['variation_id'] : null;
         $shade_name   = sanitize_text_field($data['shade_name'] ?? '');
-        $default_hex  = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::get_default_hex() : '#D4AF37';
+        $default_hex  = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::get_default_hex() : '';
         $shade_hex    = sanitize_text_field($data['shade_hex'] ?? $default_hex);
         $price        = isset($data['price']) && $data['price'] !== '' ? (float) $data['price'] : null;
         $image_url    = !empty($data['image_url']) ? esc_url_raw($data['image_url']) : null;

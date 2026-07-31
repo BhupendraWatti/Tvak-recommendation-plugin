@@ -39,10 +39,10 @@ class Tvak_User_Profile {
     private $undertone;
 
     /**
-     * Additional dynamic attributes.
+     * Dynamic quiz/profile attributes keyed by attribute code.
      * @var array
      */
-    private $extra_attributes = [];
+    private $attributes = [];
 
     /**
      * Customer-preferred shade selections: maps product_id (int) => variation_id (int).
@@ -58,16 +58,6 @@ class Tvak_User_Profile {
      * @param array $data Raw input array.
      */
     public function __construct(array $data = []) {
-        $this->skin_type     = isset($data['skin_type']) ? sanitize_key($data['skin_type']) : 'normal';
-        $this->skin_tone     = isset($data['skin_tone']) ? sanitize_key($data['skin_tone']) : 'fair_light';
-        $this->undertone     = isset($data['undertone']) ? sanitize_key($data['undertone']) : 'neutral';
-
-        if (isset($data['skin_concern']) && is_array($data['skin_concern'])) {
-            $this->skin_concerns = array_map('sanitize_key', $data['skin_concern']);
-        } elseif (isset($data['skin_concerns']) && is_array($data['skin_concerns'])) {
-            $this->skin_concerns = array_map('sanitize_key', $data['skin_concerns']);
-        }
-
         // Capture preferred shade selections (product_id => variation_id)
         if (isset($data['preferred_shades']) && is_array($data['preferred_shades'])) {
             foreach ($data['preferred_shades'] as $prod_id => $var_id) {
@@ -80,14 +70,22 @@ class Tvak_User_Profile {
         }
 
         foreach ($data as $key => $val) {
-            if (!in_array($key, ['skin_type', 'skin_tone', 'skin_concern', 'skin_concerns', 'undertone', 'preferred_shades'], true)) {
-                if (is_array($val)) {
-                    $this->extra_attributes[sanitize_key($key)] = array_map('sanitize_key', $val);
-                } else {
-                    $this->extra_attributes[sanitize_key($key)] = sanitize_key($val);
-                }
+            $clean_key = sanitize_key($key);
+            if ($clean_key === '' || in_array($clean_key, ['preferred_shades', 'nocache'], true)) {
+                continue;
+            }
+
+            if (is_array($val)) {
+                $this->attributes[$clean_key] = array_values(array_filter(array_map('sanitize_key', $val)));
+            } else {
+                $this->attributes[$clean_key] = sanitize_key($val);
             }
         }
+
+        $this->skin_type     = (string) ($this->attributes['skin_type'] ?? '');
+        $this->skin_tone     = (string) ($this->attributes['skin_tone'] ?? '');
+        $this->undertone     = (string) ($this->attributes['undertone'] ?? '');
+        $this->skin_concerns = (array) ($this->attributes['skin_concern'] ?? ($this->attributes['skin_concerns'] ?? []));
     }
 
     public function get_skin_type(): string {
@@ -107,7 +105,13 @@ class Tvak_User_Profile {
     }
 
     public function is_sensitive(): bool {
-        return $this->skin_type === 'sensitive' || in_array('sensitive', $this->skin_concerns, true);
+        $sensitive_terms = get_option('tvak_sensitive_profile_terms', []);
+        if (!is_array($sensitive_terms) || empty($sensitive_terms)) {
+            return false;
+        }
+
+        $sensitive_terms = array_map('sanitize_key', $sensitive_terms);
+        return in_array($this->skin_type, $sensitive_terms, true) || !empty(array_intersect($sensitive_terms, $this->skin_concerns));
     }
 
     /**
@@ -138,7 +142,7 @@ class Tvak_User_Profile {
             case 'undertone':
                 return $this->undertone;
             default:
-                return $this->extra_attributes[$code] ?? null;
+                return $this->attributes[$code] ?? null;
         }
     }
 
@@ -148,17 +152,12 @@ class Tvak_User_Profile {
      * @return array
      */
     public function to_array(): array {
-        $base = [
-            'skin_type'    => $this->skin_type,
-            'skin_tone'    => $this->skin_tone,
-            'skin_concern' => $this->skin_concerns,
-            'undertone'    => $this->undertone,
-        ];
+        $base = $this->attributes;
 
         if (!empty($this->preferred_shades)) {
             $base['preferred_shades'] = $this->preferred_shades;
         }
 
-        return array_merge($base, $this->extra_attributes);
+        return $base;
     }
 }

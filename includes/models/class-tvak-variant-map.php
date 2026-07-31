@@ -26,7 +26,7 @@ class Tvak_Variant_Map {
      * Compute deterministic hash for an attribute vector combination for a given product.
      *
      * @param int   $product_id Product ID.
-     * @param array $criteria   Key-value pairs (e.g. ['skin_tone' => 'fair_light', 'undertone' => 'cool']).
+     * @param array $criteria   Dynamic attribute key-value pairs from the quiz profile.
      * @return string MD5 hash string.
      */
     public static function compute_hash($product_id, $criteria) {

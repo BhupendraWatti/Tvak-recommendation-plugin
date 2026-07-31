@@ -542,7 +542,7 @@ class Tvak_Admin {
                                         <th scope="row"><label for="priority_boost"><?php esc_html_e('Priority Baseline Boost B(P)', 'tvak-beauty-kit'); ?></label></th>
                                         <td>
                                             <input type="number" step="0.05" min="0" max="1" name="priority_boost" id="priority_boost" value="<?php echo esc_attr($existing_rule['priority_boost'] ?? '0.00'); ?>" class="small-text" />
-                                            <p class="description"><?php esc_html_e('Constant score boost (e.g. 1.00 for Universal Eyeliner, 0.00 for normal items).', 'tvak-beauty-kit'); ?></p>
+                                            <p class="description"><?php esc_html_e('Constant score boost. Auto-synced products start visible by default; tune this value per product as needed.', 'tvak-beauty-kit'); ?></p>
                                         </td>
                                     </tr>
                                     <tr>
@@ -1168,14 +1168,14 @@ class Tvak_Admin {
                                         <tr>
                                             <th scope="row"><label for="shade_name"><?php esc_html_e('Shade Name', 'tvak-beauty-kit'); ?></label></th>
                                             <td>
-                                                <input type="text" name="shade_name" id="shade_name" value="<?php echo esc_attr($edit_shade['shade_name'] ?? ''); ?>" required placeholder="e.g. Choco Suede, Ivory Velouté, Onyx Black" class="regular-text" />
+                                                <input type="text" name="shade_name" id="shade_name" value="<?php echo esc_attr($edit_shade['shade_name'] ?? ''); ?>" required placeholder="<?php esc_attr_e('WooCommerce variation or shade label', 'tvak-beauty-kit'); ?>" class="regular-text" />
                                             </td>
                                         </tr>
                                         <tr>
                                             <th scope="row"><label for="shade_hex"><?php esc_html_e('Visual Color (HEX)', 'tvak-beauty-kit'); ?></label></th>
                                             <td>
-                                                <input type="color" name="shade_hex" id="shade_hex" value="<?php echo esc_attr($edit_shade['shade_hex'] ?? '#D4AF37'); ?>" style="vertical-align: middle; height: 35px; width: 60px;" />
-                                                <input type="text" name="shade_hex_text" value="<?php echo esc_attr($edit_shade['shade_hex'] ?? '#D4AF37'); ?>" style="width: 100px; margin-left: 8px;" onchange="document.getElementById('shade_hex').value=this.value" />
+                                                <input type="color" name="shade_hex" id="shade_hex" value="<?php echo esc_attr(!empty($edit_shade['shade_hex']) ? $edit_shade['shade_hex'] : '#000000'); ?>" style="vertical-align: middle; height: 35px; width: 60px;" />
+                                                <input type="text" name="shade_hex_text" value="<?php echo esc_attr($edit_shade['shade_hex'] ?? ''); ?>" style="width: 100px; margin-left: 8px;" onchange="document.getElementById('shade_hex').value=this.value" />
                                                 <p class="description"><?php esc_html_e('Exact visual shade color rendered on recommendation card swatches.', 'tvak-beauty-kit'); ?></p>
                                             </td>
                                         </tr>
@@ -1311,7 +1311,7 @@ class Tvak_Admin {
         $product_id   = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
         $shade_id     = isset($_POST['shade_id']) ? (int) $_POST['shade_id'] : 0;
         $shade_name   = sanitize_text_field($_POST['shade_name'] ?? '');
-        $shade_hex    = sanitize_text_field($_POST['shade_hex'] ?? ($_POST['shade_hex_text'] ?? '#D4AF37'));
+        $shade_hex    = sanitize_text_field($_POST['shade_hex_text'] ?? ($_POST['shade_hex'] ?? ''));
         $variation_id = !empty($_POST['variation_id']) ? (int) $_POST['variation_id'] : null;
         $price        = isset($_POST['price']) && $_POST['price'] !== '' ? (float) $_POST['price'] : null;
         $image_url    = !empty($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : null;
@@ -1655,7 +1655,7 @@ class Tvak_Admin {
                     [
                         'num'   => '3',
                         'title' => __('Must-Include Priority Boost', 'tvak-beauty-kit'),
-                        'text'  => __('Set to 1.00 for universal essential products (like Eyeliner) to guarantee they are recommended to all customers.', 'tvak-beauty-kit'),
+                        'text'  => __('Set to 1.00 when a product should remain broadly eligible, or lower it when the product should rely on profile match rules.', 'tvak-beauty-kit'),
                     ],
                     [
                         'num'   => '4',
@@ -1688,7 +1688,7 @@ class Tvak_Admin {
                     [
                         'num'   => '1',
                         'title' => __('Select Variable Product', 'tvak-beauty-kit'),
-                        'text'  => __('Choose a store product that has multiple shades or sizes (such as Liquid Foundation or BB Cream).', 'tvak-beauty-kit'),
+                        'text'  => __('Choose a WooCommerce product that has variations, sizes, shades, or other selectable attributes.', 'tvak-beauty-kit'),
                     ],
                     [
                         'num'   => '2',
@@ -1731,7 +1731,7 @@ class Tvak_Admin {
                     [
                         'num'   => '3',
                         'title' => __('Shade Display Name', 'tvak-beauty-kit'),
-                        'text'  => __('Type the shade title shown under swatch circles (for example: "Choco Suede", "Ivory Velouté", or "Onyx Black").', 'tvak-beauty-kit'),
+                        'text'  => __('Type the variation or shade title shown under swatch circles.', 'tvak-beauty-kit'),
                     ],
                     [
                         'num'   => '4',
