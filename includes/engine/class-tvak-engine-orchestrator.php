@@ -77,8 +77,11 @@ class Tvak_Engine_Orchestrator {
 
                 $score = $this->evaluator->evaluate($profile, $rule);
 
-                // Exclude items below minimum threshold (0.20)
-                if ($score < 0.20) {
+                // Exclude items below per-rule minimum threshold (falls back to global 0.20)
+                $min_threshold = isset($rule['min_score_threshold']) && $rule['min_score_threshold'] !== null
+                    ? (float) $rule['min_score_threshold']
+                    : 0.20;
+                if ($score < $min_threshold) {
                     continue;
                 }
 
@@ -94,8 +97,11 @@ class Tvak_Engine_Orchestrator {
                 continue;
             }
 
-            // Sort candidates by score descending
+            // Sort candidates by score descending; use product_id as deterministic tiebreaker
             usort($candidates, function ($a, $b) {
+                if ($b['score'] === $a['score']) {
+                    return $a['product_id'] <=> $b['product_id'];
+                }
                 return $b['score'] <=> $a['score'];
             });
 

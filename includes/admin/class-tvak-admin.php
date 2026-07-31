@@ -507,6 +507,41 @@ class Tvak_Admin {
                                 </td>
                             </tr>
                             <tr>
+                                <th scope="row"><label for="min_score_threshold"><?php esc_html_e('Minimum Score Threshold', 'tvak-beauty-kit'); ?></label></th>
+                                <td>
+                                    <input type="number" step="0.05" min="0" max="1" name="min_score_threshold" id="min_score_threshold" value="<?php echo esc_attr($existing_rule['min_score_threshold'] ?? ''); ?>" class="small-text" placeholder="0.20" />
+                                    <p class="description">
+                                        <?php esc_html_e('Product-specific minimum fit score required to include this item in a kit (overrides global 0.20). Leave blank to use global default.', 'tvak-beauty-kit'); ?>
+                                        <br /><strong style="color:#c0392b;"><?php esc_html_e('Clinical tip: Set to 0.50+ for formulas contra-indicated for certain skin types (e.g. mattifying setting spray should not appear for Dry skin profiles).', 'tvak-beauty-kit'); ?></strong>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('Fragrance / Alcohol Safety Flags', 'tvak-beauty-kit'); ?></th>
+                                <td>
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><?php esc_html_e('Sensitive skin safety flags', 'tvak-beauty-kit'); ?></legend>
+                                        <?php
+                                        $fragrance_val = get_post_meta($selected_product_id, '_tvak_contains_fragrance', true);
+                                        $alcohol_val   = get_post_meta($selected_product_id, '_tvak_contains_alcohol', true);
+                                        ?>
+                                        <label><strong><?php esc_html_e('Contains Fragrance:', 'tvak-beauty-kit'); ?></strong></label><br />
+                                        <label><input type="radio" name="tvak_contains_fragrance" value="yes" <?php checked($fragrance_val, 'yes'); ?> /> <?php esc_html_e('Yes — disqualifies from Sensitive Skin kits', 'tvak-beauty-kit'); ?></label>&nbsp;&nbsp;
+                                        <label><input type="radio" name="tvak_contains_fragrance" value="no" <?php checked($fragrance_val, 'no'); ?> /> <?php esc_html_e('No — fragrance-free / safe', 'tvak-beauty-kit'); ?></label>
+                                        <?php if ($fragrance_val === '') : ?>
+                                            <span style="color:#c0392b; margin-left: 8px;">⚠ <?php esc_html_e('Not configured — set this flag to activate the sensitive skin safety gate.', 'tvak-beauty-kit'); ?></span>
+                                        <?php endif; ?>
+                                        <br /><br />
+                                        <label><strong><?php esc_html_e('Contains Alcohol:', 'tvak-beauty-kit'); ?></strong></label><br />
+                                        <label><input type="radio" name="tvak_contains_alcohol" value="yes" <?php checked($alcohol_val, 'yes'); ?> /> <?php esc_html_e('Yes — disqualifies from Sensitive Skin kits', 'tvak-beauty-kit'); ?></label>&nbsp;&nbsp;
+                                        <label><input type="radio" name="tvak_contains_alcohol" value="no" <?php checked($alcohol_val, 'no'); ?> /> <?php esc_html_e('No — alcohol-free / safe', 'tvak-beauty-kit'); ?></label>
+                                        <?php if ($alcohol_val === '') : ?>
+                                            <span style="color:#c0392b; margin-left: 8px;">⚠ <?php esc_html_e('Not configured — set this flag to activate the sensitive skin safety gate.', 'tvak-beauty-kit'); ?></span>
+                                        <?php endif; ?>
+                                    </fieldset>
+                                </td>
+                            </tr>
+                            <tr>
                                 <th scope="row"><?php esc_html_e('Rule Status', 'tvak-beauty-kit'); ?></th>
                                 <td>
                                     <label><input type="checkbox" name="is_active" value="1" <?php checked($existing_rule['is_active'] ?? 1, 1); ?> /> <?php esc_html_e('Active in Recommendation Engine', 'tvak-beauty-kit'); ?></label>
@@ -573,15 +608,31 @@ class Tvak_Admin {
             wp_die(__('Unauthorized access', 'tvak-beauty-kit'));
         }
 
-        $product_id      = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
-        $slot_id         = isset($_POST['slot_id']) ? (int) $_POST['slot_id'] : 0;
-        $priority_boost = isset($_POST['priority_boost']) ? (float) $_POST['priority_boost'] : 0.0;
-        $is_active       = isset($_POST['is_active']) ? 1 : 0;
-        $attribute_rules = $_POST['attribute_rules'] ?? [];
+        $product_id           = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+        $slot_id              = isset($_POST['slot_id']) ? (int) $_POST['slot_id'] : 0;
+        $priority_boost       = isset($_POST['priority_boost']) ? (float) $_POST['priority_boost'] : 0.0;
+        $is_active            = isset($_POST['is_active']) ? 1 : 0;
+        $attribute_rules      = $_POST['attribute_rules'] ?? [];
+        $min_score_threshold  = (isset($_POST['min_score_threshold']) && $_POST['min_score_threshold'] !== '') ? (float) $_POST['min_score_threshold'] : null;
 
         if ($product_id && $slot_id) {
-            Tvak_Product_Rule::save_rule($product_id, $slot_id, $priority_boost, $is_active, $attribute_rules);
+            Tvak_Product_Rule::save_rule($product_id, $slot_id, $priority_boost, $is_active, $attribute_rules, $min_score_threshold);
             Tvak_Cache::invalidate_rules_cache();
+        }
+
+        // Persist safety flags for sensitive-skin guardrail (Issue #8)
+        if ($product_id) {
+            $allowed_values = ['yes', 'no'];
+
+            $fragrance_val = sanitize_key($_POST['tvak_contains_fragrance'] ?? '');
+            if (in_array($fragrance_val, $allowed_values, true)) {
+                update_post_meta($product_id, '_tvak_contains_fragrance', $fragrance_val);
+            }
+
+            $alcohol_val = sanitize_key($_POST['tvak_contains_alcohol'] ?? '');
+            if (in_array($alcohol_val, $allowed_values, true)) {
+                update_post_meta($product_id, '_tvak_contains_alcohol', $alcohol_val);
+            }
         }
 
         wp_redirect(admin_url('admin.php?page=tvak-engine&product_id=' . $product_id . '&message=saved'));

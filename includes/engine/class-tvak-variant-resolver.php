@@ -124,25 +124,70 @@ class Tvak_Variant_Resolver {
             }
         }
 
-        // Stock fallback logic: if resolved shade is out of stock, attempt fallback to default available variation
+        // Stock fallback logic: if resolved shade is out of stock, attempt fallback to the
+        // best tone-proximity-matching in-stock variation, not just the first available.
         if (!$is_in_stock && function_exists('wc_get_product')) {
             $parent_obj = wc_get_product($product_id);
             if ($parent_obj && $parent_obj->is_type('variable')) {
-                $children = $parent_obj->get_children();
+                $children           = $parent_obj->get_children();
+                $profile_array      = $profile->to_array();
+                $best_fallback_id   = null;
+                $best_match_score   = -1;
+
                 foreach ($children as $child_id) {
                     $child_obj = wc_get_product($child_id);
-                    if ($child_obj && $child_obj->is_in_stock()) {
-                        $variation_id = $child_id;
+                    if (!$child_obj || !$child_obj->is_in_stock()) {
+                        continue;
+                    }
+
+                    // Score this in-stock child against the customer profile.
+                    // Tvak_Variant_Map::resolve_variation() returns this child's ID
+                    // if it matches the profile (exact or partial).  We use the
+                    // partial-match counting logic: count how many profile attributes
+                    // align with the child's stored criteria_vector.
+                    global $wpdb;
+                    $map_table = $wpdb->prefix . 'tvak_variant_mapping_matrix';
+                    $criteria_json = $wpdb->get_var(
+                        $wpdb->prepare(
+                            "SELECT criteria_vector FROM {$map_table} WHERE product_id = %d AND variation_id = %d LIMIT 1",
+                            $product_id, $child_id
+                        )
+                    );
+
+                    $child_match_score = 0;
+                    if ($criteria_json) {
+                        $criteria_vector = json_decode($criteria_json, true) ?: [];
+                        foreach ($criteria_vector as $k => $v) {
+                            if (isset($profile_array[$k]) && $profile_array[$k] === $v) {
+                                $child_match_score++;
+                            }
+                        }
+                    }
+
+                    // Prefer the child with the highest attribute-match count.
+                    // On tie, prefer the child with the lower ID (insertion-order stability).
+                    if ($child_match_score > $best_match_score ||
+                        ($child_match_score === $best_match_score && $best_fallback_id === null)) {
+                        $best_match_score = $child_match_score;
+                        $best_fallback_id = $child_id;
+                    }
+                }
+
+                if ($best_fallback_id !== null) {
+                    $fb_obj = wc_get_product($best_fallback_id);
+                    if ($fb_obj) {
+                        $variation_id = $best_fallback_id;
                         $is_in_stock  = true;
-                        $shade_name   = implode(' / ', array_filter($child_obj->get_variation_attributes()));
-                        $raw_price    = $child_obj->get_price();
+                        $shade_name   = implode(' / ', array_filter($fb_obj->get_variation_attributes()));
+                        $raw_price    = $fb_obj->get_price();
                         if ($raw_price !== '' && $raw_price !== false) {
                             $price           = (float) $raw_price;
                             $price_formatted = wc_price($price);
                         }
-                        break;
                     }
                 }
+                // If no in-stock fallback found, leave $is_in_stock = false so the
+                // UI can display an "Out of Stock / Notify me" indicator.
             }
         }
 
@@ -235,18 +280,40 @@ class Tvak_Variant_Resolver {
         }
         $all_shades = $unique_shades;
 
-        // If shades exist, select initial primary shade from first active variation
-        if (!empty($all_shades[0])) {
-            $shade_name      = $all_shades[0]['shade_name'];
-            $variation_id    = $all_shades[0]['variation_id'];
-            $price           = $all_shades[0]['price'];
-            $price_formatted = $all_shades[0]['price_formatted'];
-            $image_url       = $all_shades[0]['image_url'];
-            $is_in_stock     = $all_shades[0]['is_in_stock'];
+        // If shades exist: honour customer's shade preference before defaulting to position 0.
+        // This resolves Issue #5: the preference passed in the REST payload is now applied.
+        $preferred_var_id = $profile->get_preferred_shade($product_id);
+        $primary_shade_idx = 0;
+
+        if ($preferred_var_id && !empty($all_shades)) {
+            foreach ($all_shades as $sh_idx => $sh_item) {
+                if ((int) $sh_item['variation_id'] === $preferred_var_id) {
+                    // Reset is_selected flags so exactly one shade is selected
+                    foreach ($all_shades as &$sh_ref) {
+                        $sh_ref['is_selected'] = false;
+                    }
+                    unset($sh_ref);
+                    $all_shades[$sh_idx]['is_selected'] = true;
+                    $primary_shade_idx                  = $sh_idx;
+                    break;
+                }
+            }
+        }
+
+        // Select primary shade (preferred or first)
+        if (!empty($all_shades[$primary_shade_idx])) {
+            $shade_name      = $all_shades[$primary_shade_idx]['shade_name'];
+            $variation_id    = $all_shades[$primary_shade_idx]['variation_id'];
+            $price           = $all_shades[$primary_shade_idx]['price'];
+            $price_formatted = $all_shades[$primary_shade_idx]['price_formatted'];
+            $image_url       = $all_shades[$primary_shade_idx]['image_url'];
+            $is_in_stock     = $all_shades[$primary_shade_idx]['is_in_stock'];
         }
 
         // Determine resolved primary shade hex color
-        $shade_hex = !empty($all_shades[0]['hex_color']) ? $all_shades[0]['hex_color'] : self::get_shade_hex($shade_name);
+        $shade_hex = !empty($all_shades[$primary_shade_idx]['hex_color'])
+            ? $all_shades[$primary_shade_idx]['hex_color']
+            : self::get_shade_hex($shade_name);
 
         return [
             'variation_id'    => (int) $variation_id,

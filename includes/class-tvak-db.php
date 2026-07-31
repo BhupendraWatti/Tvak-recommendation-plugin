@@ -18,7 +18,7 @@ class Tvak_DB {
     /**
      * Current DB Version.
      */
-    const DB_VERSION = '1.1.0';
+    const DB_VERSION = '1.2.0';
 
     /**
      * Create or update custom database tables using dbDelta.
@@ -107,6 +107,7 @@ class Tvak_DB {
             product_id BIGINT UNSIGNED NOT NULL,
             slot_id INT UNSIGNED NOT NULL,
             priority_boost DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            min_score_threshold DECIMAL(3,2) NULL DEFAULT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY  (rule_id),
             KEY product_id (product_id),

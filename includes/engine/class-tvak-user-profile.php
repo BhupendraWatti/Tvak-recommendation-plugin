@@ -45,6 +45,14 @@ class Tvak_User_Profile {
     private $extra_attributes = [];
 
     /**
+     * Customer-preferred shade selections: maps product_id (int) => variation_id (int).
+     * Populated when the customer has already selected a specific shade before
+     * requesting a fresh recommendation (e.g. re-running the quiz after shade swatch pick).
+     * @var array
+     */
+    private $preferred_shades = [];
+
+    /**
      * Constructor.
      *
      * @param array $data Raw input array.
@@ -60,8 +68,19 @@ class Tvak_User_Profile {
             $this->skin_concerns = array_map('sanitize_key', $data['skin_concerns']);
         }
 
+        // Capture preferred shade selections (product_id => variation_id)
+        if (isset($data['preferred_shades']) && is_array($data['preferred_shades'])) {
+            foreach ($data['preferred_shades'] as $prod_id => $var_id) {
+                $prod_id_int = (int) $prod_id;
+                $var_id_int  = (int) $var_id;
+                if ($prod_id_int > 0 && $var_id_int > 0) {
+                    $this->preferred_shades[$prod_id_int] = $var_id_int;
+                }
+            }
+        }
+
         foreach ($data as $key => $val) {
-            if (!in_array($key, ['skin_type', 'skin_tone', 'skin_concern', 'skin_concerns', 'undertone'], true)) {
+            if (!in_array($key, ['skin_type', 'skin_tone', 'skin_concern', 'skin_concerns', 'undertone', 'preferred_shades'], true)) {
                 if (is_array($val)) {
                     $this->extra_attributes[sanitize_key($key)] = array_map('sanitize_key', $val);
                 } else {
@@ -92,6 +111,16 @@ class Tvak_User_Profile {
     }
 
     /**
+     * Get customer's preferred variation ID for a specific product (shade override).
+     *
+     * @param int $product_id WooCommerce Product ID.
+     * @return int|null Preferred variation ID or null if no preference set.
+     */
+    public function get_preferred_shade(int $product_id): ?int {
+        return $this->preferred_shades[$product_id] ?? null;
+    }
+
+    /**
      * Get value for attribute code.
      *
      * @param string $code Attribute code.
@@ -119,14 +148,17 @@ class Tvak_User_Profile {
      * @return array
      */
     public function to_array(): array {
-        return array_merge(
-            [
-                'skin_type'    => $this->skin_type,
-                'skin_tone'    => $this->skin_tone,
-                'skin_concern' => $this->skin_concerns,
-                'undertone'    => $this->undertone,
-            ],
-            $this->extra_attributes
-        );
+        $base = [
+            'skin_type'    => $this->skin_type,
+            'skin_tone'    => $this->skin_tone,
+            'skin_concern' => $this->skin_concerns,
+            'undertone'    => $this->undertone,
+        ];
+
+        if (!empty($this->preferred_shades)) {
+            $base['preferred_shades'] = $this->preferred_shades;
+        }
+
+        return array_merge($base, $this->extra_attributes);
     }
 }

@@ -18,6 +18,14 @@ require_once __DIR__ . '/interface-tvak-evaluator.php';
 class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
 
     /**
+     * Default match score applied when a user attribute value is not present
+     * in the product's match_matrix. A missing key means "compatible but not
+     * optimised" (neutral), NOT "contra-indicated" (0.0).
+     * Admins set explicit 0.0 in the matrix to hard-exclude a product.
+     */
+    const DEFAULT_ABSENT_MATCH = 0.20;
+
+    /**
      * Evaluate fit score S(P, U).
      *
      * @param Tvak_User_Profile $profile   Customer profile vector.
@@ -47,15 +55,29 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
 
             if (is_array($user_val)) {
                 if (!empty($user_val)) {
+                    // For multi-select attributes (e.g. skin_concern), compute the
+                    // mean of individual concern scores so that customers selecting
+                    // more concerns receive proportionally stronger match signals
+                    // than single-concern customers. A matrix key set to 0.0
+                    // explicitly means "contra-indicated"; absent key uses the
+                    // neutral DEFAULT_ABSENT_MATCH baseline.
                     $scores = [];
                     foreach ($user_val as $val_item) {
-                        $scores[] = isset($matrix[$val_item]) ? (float) $matrix[$val_item] : 0.0;
+                        $scores[] = isset($matrix[$val_item])
+                            ? (float) $matrix[$val_item]
+                            : self::DEFAULT_ABSENT_MATCH;
                     }
-                    $match_score = !empty($scores) ? max($scores) : 0.0;
+                    $match_score = array_sum($scores) / count($scores);
                 }
+                // empty array: user selected no concerns → match_score stays 0.0
+                // (product still scores on other attributes like skin_type, skin_tone)
             } elseif (!is_null($user_val) && $user_val !== '') {
-                $match_score = isset($matrix[$user_val]) ? (float) $matrix[$user_val] : 0.0;
+                // Single-value attribute: use explicit matrix value or neutral baseline
+                $match_score = isset($matrix[$user_val])
+                    ? (float) $matrix[$user_val]
+                    : self::DEFAULT_ABSENT_MATCH;
             }
+            // Null/empty user_val (user skipped the step) → match_score stays 0.0
 
             $weighted_sum += $w * $match_score;
             $total_weight += $w;
@@ -65,11 +87,12 @@ class Tvak_Product_Evaluator implements Tvak_Evaluator_Interface {
             return min(1.0, max(0.0, $boost));
         }
 
-        $base_score = $weighted_sum / $total_weight;
+        $base_score  = $weighted_sum / $total_weight;
         $final_score = min(1.0, max(0.0, $base_score + $boost));
 
         return round($final_score, 4);
     }
+
 
     /**
      * Generate human-readable rationale explanation for product recommendation.

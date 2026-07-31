@@ -29,6 +29,80 @@ class Tvak_REST_API {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [__CLASS__, 'handle_recommend'],
             'permission_callback' => '__return_true',
+            'args'                => [
+                'skin_type' => [
+                    'type'              => 'string',
+                    'required'          => false,
+                    'default'           => 'normal',
+                    'sanitize_callback' => 'sanitize_key',
+                ],
+                'skin_tone' => [
+                    'type'              => 'string',
+                    'required'          => false,
+                    'default'           => 'fair_light',
+                    'sanitize_callback' => 'sanitize_key',
+                ],
+                'skin_concern' => [
+                    'type'              => 'array',
+                    'required'          => false,
+                    'default'           => [],
+                    'items'             => ['type' => 'string'],
+                    'sanitize_callback' => static function ($val) {
+                        return is_array($val) ? array_map('sanitize_key', $val) : [];
+                    },
+                ],
+                'undertone' => [
+                    'type'              => 'string',
+                    'required'          => false,
+                    'default'           => 'neutral',
+                    'sanitize_callback' => 'sanitize_key',
+                ],
+                'preferred_shades' => [
+                    'type'              => 'object',
+                    'required'          => false,
+                    'default'           => [],
+                    'validate_callback' => static function ($val) {
+                        if (!is_array($val)) {
+                            return true; // Will be coerced to [] in UserProfile
+                        }
+                        // Each entry must be a product_id (positive int) => variation_id (positive int)
+                        foreach ($val as $prod_id => $var_id) {
+                            if (!ctype_digit((string) $prod_id) || !ctype_digit((string) $var_id) || (int) $prod_id < 1 || (int) $var_id < 1) {
+                                return new WP_Error(
+                                    'invalid_preferred_shades',
+                                    __('preferred_shades must be an object of product_id => variation_id integer pairs.', 'tvak-beauty-kit')
+                                );
+                            }
+                        }
+                        // Limit map size to prevent abuse
+                        if (count($val) > 20) {
+                            return new WP_Error(
+                                'too_many_preferred_shades',
+                                __('preferred_shades may not contain more than 20 entries.', 'tvak-beauty-kit')
+                            );
+                        }
+                        return true;
+                    },
+                    'sanitize_callback' => static function ($val) {
+                        if (!is_array($val)) {
+                            return [];
+                        }
+                        $clean = [];
+                        foreach ($val as $prod_id => $var_id) {
+                            $prod_id_int = (int) $prod_id;
+                            $var_id_int  = (int) $var_id;
+                            if ($prod_id_int > 0 && $var_id_int > 0) {
+                                $clean[$prod_id_int] = $var_id_int;
+                            }
+                        }
+                        return $clean;
+                    },
+                ],
+                'nocache' => [
+                    'type'    => 'boolean',
+                    'default' => false,
+                ],
+            ],
         ]);
 
         // Attributes Quiz Definition Endpoint
@@ -36,6 +110,7 @@ class Tvak_REST_API {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [__CLASS__, 'handle_get_attributes'],
             'permission_callback' => '__return_true',
+            'args'                => [],
         ]);
 
         // Quiz Dynamic Configuration Endpoint
@@ -43,6 +118,7 @@ class Tvak_REST_API {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [__CLASS__, 'handle_get_quiz_config'],
             'permission_callback' => '__return_true',
+            'args'                => [],
         ]);
 
         // Health Check Endpoint
@@ -50,8 +126,10 @@ class Tvak_REST_API {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [__CLASS__, 'handle_health_check'],
             'permission_callback' => '__return_true',
+            'args'                => [],
         ]);
     }
+
 
     /**
      * Handle recommendation request.
@@ -60,14 +138,16 @@ class Tvak_REST_API {
      * @return WP_REST_Response
      */
     public static function handle_recommend(WP_REST_Request $request) {
-        $params = $request->get_json_params() ?: $request->get_params();
+        // Use get_params() (not get_json_params()) so WP REST sanitize_callbacks
+        // declared in the args schema are applied before data reaches the engine.
+        $params = $request->get_params();
 
-        $profile = new Tvak_User_Profile($params);
+        $profile       = new Tvak_User_Profile($params);
         $profile_array = $profile->to_array();
-        $cache_key = 'rec_' . md5(wp_json_encode($profile_array));
+        $cache_key     = 'rec_' . md5(wp_json_encode($profile_array));
 
-        // 1. Check Cache Hit (Bypass cache if nocache parameter passed or if cached item is stale)
-        $no_cache = (bool) $request->get_param('nocache');
+        // 1. Check Cache Hit (Bypass cache if nocache param is truthy or cached schema is stale)
+        $no_cache = !empty($params['nocache']);
         if (!$no_cache) {
             $cached_response = Tvak_Cache::get($cache_key);
             if ($cached_response && !empty($cached_response['items'])) {
@@ -189,14 +269,31 @@ class Tvak_REST_API {
      * @return WP_REST_Response
      */
     public static function handle_health_check(WP_REST_Request $request) {
+        global $wpdb;
+
+        $installed_db_version = get_option('tvak_db_version', '1.0.0');
+        $expected_db_version  = defined('Tvak_DB::DB_VERSION') ? Tvak_DB::DB_VERSION : '1.2.0';
+        $needs_migration      = version_compare($installed_db_version, $expected_db_version, '<');
+
+        // Quick rule and slot counts for ops visibility
+        $rules_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}tvak_product_rules WHERE is_active = 1");
+        $slots_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}tvak_kit_slots");
+
+        $status = ($needs_migration || !class_exists('WooCommerce')) ? 'degraded' : 'healthy';
+
         return new WP_REST_Response([
-            'status'            => 'healthy',
-            'engine_version'    => TVAK_VERSION,
-            'db_version'        => get_option('tvak_db_version', '1.0.0'),
-            'woocommerce_active'=> class_exists('WooCommerce'),
-            'timestamp'         => current_time('mysql'),
-        ], 200);
+            'status'             => $status,
+            'engine_version'     => defined('TVAK_VERSION') ? TVAK_VERSION : 'unknown',
+            'db_version'         => $installed_db_version,
+            'db_version_latest'  => $expected_db_version,
+            'needs_migration'    => $needs_migration,
+            'woocommerce_active' => class_exists('WooCommerce'),
+            'active_rules'       => $rules_count,
+            'kit_slots'          => $slots_count,
+            'timestamp'          => current_time('mysql'),
+        ], $needs_migration ? 503 : 200);
     }
+
 
     /**
      * Log session to wp_tvak_recommendation_session_logs.

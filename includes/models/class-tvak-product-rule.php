@@ -105,12 +105,13 @@ class Tvak_Product_Rule {
 
             if (!isset($rules_map[$rule_id])) {
                 $rules_map[$rule_id] = [
-                    'rule_id'        => $rule_id,
-                    'product_id'     => (int) $row['product_id'],
-                    'slot_id'        => $slot_id,
-                    'priority_boost' => (float) $row['priority_boost'],
-                    'is_active'      => (int) $row['is_active'],
-                    'attribute_rules' => [],
+                    'rule_id'               => $rule_id,
+                    'product_id'            => (int) $row['product_id'],
+                    'slot_id'               => $slot_id,
+                    'priority_boost'        => (float) $row['priority_boost'],
+                    'min_score_threshold'   => isset($row['min_score_threshold']) && $row['min_score_threshold'] !== null ? (float) $row['min_score_threshold'] : null,
+                    'is_active'             => (int) $row['is_active'],
+                    'attribute_rules'       => [],
                 ];
             }
 
@@ -147,7 +148,7 @@ class Tvak_Product_Rule {
      * @param array $attribute_rules Attribute rules array [code => ['weight' => float, 'match_matrix' => array]].
      * @return int Rule ID.
      */
-    public static function save_rule($product_id, $slot_id, $priority_boost, $is_active, $attribute_rules) {
+    public static function save_rule($product_id, $slot_id, $priority_boost, $is_active, $attribute_rules, $min_score_threshold = null) {
         global $wpdb;
         $rule_table = self::get_rule_table();
         $attr_table = self::get_attr_table();
@@ -156,30 +157,41 @@ class Tvak_Product_Rule {
             $wpdb->prepare("SELECT rule_id FROM {$rule_table} WHERE product_id = %d", $product_id)
         );
 
+        // Resolve min_score_threshold — null means use global 0.20 default; any numeric value is product-specific
+        $resolved_threshold = ($min_score_threshold !== null && $min_score_threshold !== '') ? (float) $min_score_threshold : null;
+
         if ($existing_rule_id) {
-            $wpdb->update(
-                $rule_table,
-                [
-                    'slot_id'        => (int) $slot_id,
-                    'priority_boost' => (float) $priority_boost,
-                    'is_active'      => (int) $is_active,
-                ],
-                ['rule_id' => $existing_rule_id],
-                ['%d', '%f', '%d'],
-                ['%d']
-            );
+            if ($resolved_threshold !== null) {
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$rule_table} SET slot_id = %d, priority_boost = %f, is_active = %d, min_score_threshold = %f WHERE rule_id = %d",
+                        (int) $slot_id, (float) $priority_boost, (int) $is_active, $resolved_threshold, (int) $existing_rule_id
+                    )
+                );
+            } else {
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$rule_table} SET slot_id = %d, priority_boost = %f, is_active = %d, min_score_threshold = NULL WHERE rule_id = %d",
+                        (int) $slot_id, (float) $priority_boost, (int) $is_active, (int) $existing_rule_id
+                    )
+                );
+            }
             $rule_id = $existing_rule_id;
         } else {
-            $wpdb->insert(
-                $rule_table,
-                [
-                    'product_id'     => (int) $product_id,
-                    'slot_id'        => (int) $slot_id,
-                    'priority_boost' => (float) $priority_boost,
-                    'is_active'      => (int) $is_active,
-                ],
-                ['%d', '%d', '%f', '%d']
-            );
+            $insert_data    = [
+                'product_id'     => (int) $product_id,
+                'slot_id'        => (int) $slot_id,
+                'priority_boost' => (float) $priority_boost,
+                'is_active'      => (int) $is_active,
+            ];
+            $insert_formats = ['%d', '%d', '%f', '%d'];
+
+            if ($resolved_threshold !== null) {
+                $insert_data['min_score_threshold'] = $resolved_threshold;
+                $insert_formats[]                   = '%f';
+            }
+
+            $wpdb->insert($rule_table, $insert_data, $insert_formats);
             $rule_id = $wpdb->insert_id;
         }
 
