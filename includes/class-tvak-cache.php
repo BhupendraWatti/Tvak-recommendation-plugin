@@ -71,6 +71,10 @@ class Tvak_Cache {
         self::delete('all_attributes');
         self::delete('quiz_config_payload');
         self::flush_recommendation_cache();
+
+        if (function_exists('do_action')) {
+            do_action('litespeed_purge_all');
+        }
     }
 
     /**

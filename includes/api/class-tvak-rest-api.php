@@ -117,7 +117,8 @@ class Tvak_REST_API {
 
         $profile       = new Tvak_User_Profile($params);
         $profile_array = $profile->to_array();
-        $cache_key     = 'rec_' . md5(wp_json_encode($profile_array));
+        $cache_version = defined('TVAK_VERSION') ? TVAK_VERSION : '1';
+        $cache_key     = 'rec_' . $cache_version . '_' . md5(wp_json_encode($profile_array));
 
         // 1. Check Cache Hit (Bypass cache if nocache param is truthy or cached schema is stale)
         $no_cache = !empty($params['nocache']);

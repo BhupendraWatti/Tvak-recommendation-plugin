@@ -1,0 +1,1764 @@
+.tvak-hamper-builder {
+  margin: 22px 0 0;
+  clear: both;
+}
+
+.tvak-hamper-builder.is-inside-summary {
+  width: min(100%, 920px);
+}
+
+.tvak-hamper-panel {
+  --tvak-ink: #241513;
+  --tvak-muted: #78615b;
+  --tvak-line: #eadfd8;
+  --tvak-paper: #fffaf4;
+  --tvak-card: #fffdf9;
+  --tvak-wine: #6b1f2f;
+  --tvak-gold: #b9843a;
+  overflow: hidden;
+  border: 1px solid rgba(185, 132, 58, 0.24);
+  border-radius: 8px;
+  background: var(--tvak-paper);
+  box-shadow: 0 18px 50px rgba(25, 8, 12, 0.16);
+  color: var(--tvak-ink);
+}
+
+.tvak-hamper-panel * {
+  box-sizing: border-box;
+}
+
+.tvak-hamper-header,
+.tvak-hamper-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.tvak-hamper-header {
+  border-bottom: 1px solid var(--tvak-line);
+  background: linear-gradient(180deg, #fffdf9 0%, #fff8ef 100%);
+}
+
+.tvak-hamper-header h2 {
+  margin: 0 0 3px;
+  color: var(--tvak-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.tvak-hamper-header p,
+.tvak-hamper-message {
+  margin: 0;
+  color: var(--tvak-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.tvak-hamper-count {
+  flex: 0 0 auto;
+  border: 1px solid var(--tvak-line);
+  background: #ffffff;
+  color: var(--tvak-wine);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.tvak-hamper-items {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.tvak-hamper-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 350px;
+  border: 1px solid var(--tvak-line);
+  border-radius: 8px;
+  background: var(--tvak-card);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.tvak-hamper-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(65, 24, 28, 0.12);
+}
+
+.tvak-hamper-item.is-selected {
+  border-color: rgba(185, 132, 58, 0.62);
+}
+
+.tvak-hamper-item.is-disabled {
+  opacity: 0.58;
+}
+
+.tvak-hamper-image-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 118px;
+  padding: 14px 12px 8px;
+}
+
+.tvak-hamper-image-wrap img {
+  width: 88px;
+  height: 106px;
+  object-fit: contain;
+}
+
+.tvak-hamper-badge {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  border: 1px solid rgba(185, 132, 58, 0.3);
+  border-radius: 999px;
+  background: #fff8ea;
+  color: var(--tvak-gold);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 7px;
+}
+
+.tvak-hamper-item-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 12px 10px;
+}
+
+.tvak-hamper-item-body h3 {
+  min-height: 38px;
+  margin: 0 0 6px;
+  color: var(--tvak-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.tvak-hamper-item-body p {
+  min-height: 36px;
+  margin: 0 0 8px;
+  color: var(--tvak-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tvak-hamper-price {
+  margin-top: auto;
+  color: var(--tvak-ink);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.tvak-hamper-stock {
+  margin-top: 6px;
+  color: #a12626;
+  font-size: 11px;
+}
+
+.tvak-hamper-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.tvak-hamper-qty {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--tvak-line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.tvak-hamper-qty button,
+.tvak-hamper-product-action,
+.tvak-hamper-shade-button,
+.tvak-hamper-submit {
+  all: unset;
+  box-sizing: border-box;
+  appearance: none;
+  font: inherit;
+}
+
+.tvak-hamper-panel button:before,
+.tvak-hamper-panel button:after {
+  content: none !important;
+  display: none !important;
+}
+
+.tvak-hamper-qty button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent !important;
+  color: var(--tvak-wine);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tvak-hamper-qty button:disabled {
+  color: #d3c3bb;
+  cursor: not-allowed;
+}
+
+.tvak-hamper-qty span {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--tvak-line);
+  border-left: 1px solid var(--tvak-line);
+  color: var(--tvak-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tvak-hamper-product-action {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--tvak-wine);
+  border-radius: 6px;
+  background: var(--tvak-wine) !important;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tvak-hamper-item.is-selected .tvak-hamper-product-action {
+  border-color: rgba(185, 132, 58, 0.46);
+  background: #fff8ea !important;
+  color: var(--tvak-wine);
+}
+
+.tvak-hamper-product-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.tvak-hamper-variation-row {
+  min-height: 82px;
+  border-top: 1px solid var(--tvak-line);
+  padding: 10px 12px 12px;
+}
+
+.tvak-hamper-variation-row.is-muted {
+  opacity: 0.45;
+}
+
+.tvak-hamper-shade-label {
+  margin-bottom: 8px;
+  color: var(--tvak-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.tvak-hamper-shade-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tvak-hamper-shade-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid rgba(95, 43, 43, 0.18);
+  border-radius: 999px;
+  background: #ffffff !important;
+  color: var(--tvak-wine);
+  cursor: pointer;
+  padding: 3px;
+  overflow: visible;
+}
+
+.tvak-hamper-shade-button:disabled {
+  cursor: not-allowed;
+}
+
+.tvak-hamper-shade-button.is-active {
+  border-color: var(--tvak-gold);
+  box-shadow: 0 0 0 2px rgba(185, 132, 58, 0.22);
+}
+
+.tvak-hamper-shade-button span {
+  display: block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(36, 21, 19, 0.28);
+}
+
+.tvak-hamper-shade-button b {
+  display: none;
+}
+
+.tvak-hamper-selected-shade {
+  margin-top: 7px;
+  overflow: hidden;
+  color: var(--tvak-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tvak-hamper-footer {
+  border-top: 1px solid var(--tvak-line);
+  background: #fffdf9;
+}
+
+.tvak-hamper-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tvak-hamper-summary strong {
+  display: block;
+  color: var(--tvak-ink);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.tvak-hamper-gift {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--tvak-gold);
+  border-radius: 6px;
+}
+
+.tvak-hamper-gift:before,
+.tvak-hamper-gift:after {
+  content: "";
+  position: absolute;
+  background: var(--tvak-gold);
+}
+
+.tvak-hamper-gift:before {
+  top: 50%;
+  left: 5px;
+  right: 5px;
+  height: 1px;
+}
+
+.tvak-hamper-gift:after {
+  top: 5px;
+  bottom: 5px;
+  left: 50%;
+  width: 1px;
+}
+
+.tvak-hamper-total {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.tvak-hamper-total span {
+  display: block;
+  color: var(--tvak-muted);
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.tvak-hamper-total strong {
+  color: var(--tvak-ink);
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.tvak-hamper-submit {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 168px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tvak-ink) !important;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tvak-hamper-submit:disabled {
+  background: #b9a8a0 !important;
+  cursor: not-allowed;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel {
+  box-shadow: 0 14px 36px rgba(25, 8, 12, 0.14);
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+  padding: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header h2 {
+  font-size: 17px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header p,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-message {
+  font-size: 11px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-items {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-item {
+  min-height: 326px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-image-wrap {
+  min-height: 100px;
+  padding: 12px 10px 6px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-image-wrap img {
+  width: 74px;
+  height: 88px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-badge {
+  top: 7px;
+  right: 7px;
+  font-size: 9px;
+  padding: 4px 6px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-item-body {
+  padding: 0 10px 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-item-body h3 {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-item-body p {
+  min-height: 32px;
+  font-size: 10px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-price {
+  font-size: 13px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-controls {
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-qty {
+  grid-template-columns: 30px 1fr 30px;
+  height: 32px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-product-action {
+  min-height: 32px;
+  font-size: 11px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-variation-row {
+  min-height: 82px;
+  padding: 8px 10px 10px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-shade-label {
+  margin-bottom: 6px;
+  font-size: 9px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-shade-list {
+  gap: 5px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-shade-button {
+  min-width: 23px;
+  height: 23px;
+  padding: 2px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-shade-button span {
+  width: 15px;
+  height: 15px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-summary {
+  gap: 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-summary strong {
+  font-size: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-gift {
+  width: 28px;
+  height: 28px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-total strong {
+  font-size: 18px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+}
+
+.tvak-hamper-loading,
+.tvak-hamper-error {
+  padding: 24px;
+  border: 1px solid var(--tvak-line, #eadfd8);
+  border-radius: 8px;
+  background: #fffaf4;
+  color: #241513;
+  text-align: center;
+}
+
+@media (max-width: 1280px) {
+  .tvak-hamper-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .tvak-hamper-header,
+  .tvak-hamper-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tvak-hamper-items {
+    grid-template-columns: 1fr;
+  }
+
+  .tvak-hamper-item {
+    min-height: 0;
+  }
+
+  .tvak-hamper-total {
+    text-align: left;
+  }
+
+  .tvak-hamper-submit {
+    width: 100%;
+  }
+}
+
+/* Final storefront refinement: CSS-only, scoped to the hamper builder. */
+.tvak-hamper-panel {
+  isolation: isolate;
+}
+
+.tvak-hamper-panel .tvak-hamper-items {
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+}
+
+.tvak-hamper-panel .tvak-hamper-item {
+  display: grid;
+  grid-template-rows: 126px minmax(126px, 1fr) 82px 92px;
+  min-height: 426px;
+  overflow: hidden;
+}
+
+.tvak-hamper-panel .tvak-hamper-item:not(:has(.tvak-hamper-variation-row)) {
+  grid-template-rows: 126px minmax(126px, 1fr) 82px 92px;
+}
+
+.tvak-hamper-panel .tvak-hamper-item:not(:has(.tvak-hamper-variation-row))::after {
+  content: "";
+  display: block;
+  min-height: 92px;
+  border-top: 1px solid var(--tvak-line);
+  background: linear-gradient(180deg, rgba(255, 248, 234, 0.42), rgba(255, 253, 249, 0.8));
+}
+
+.tvak-hamper-panel .tvak-hamper-image-wrap {
+  min-height: 0;
+  padding: 16px 14px 8px;
+}
+
+.tvak-hamper-panel .tvak-hamper-image-wrap img {
+  display: block;
+  max-width: 100%;
+  object-position: center;
+}
+
+.tvak-hamper-panel .tvak-hamper-item-body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+  min-height: 0;
+}
+
+.tvak-hamper-panel .tvak-hamper-item-body h3,
+.tvak-hamper-panel .tvak-hamper-item-body p,
+.tvak-hamper-panel .tvak-hamper-price {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.tvak-hamper-panel .tvak-hamper-item-body h3 {
+  display: -webkit-box;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tvak-hamper-panel .tvak-hamper-item-body p {
+  display: -webkit-box;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.tvak-hamper-panel .tvak-hamper-price {
+  align-self: end;
+  margin-top: 0;
+}
+
+.tvak-hamper-panel .tvak-hamper-controls {
+  display: grid;
+  grid-template-rows: 36px 38px;
+  align-content: start;
+  gap: 8px;
+}
+
+.tvak-hamper-panel .tvak-hamper-qty {
+  display: grid;
+  grid-template-columns: 38px minmax(34px, 1fr) 38px;
+  width: 100%;
+  height: 36px;
+  min-width: 0;
+  overflow: hidden;
+  border-color: rgba(120, 97, 91, 0.28);
+}
+
+.tvak-hamper-panel .tvak-hamper-qty button,
+.tvak-hamper-panel .tvak-hamper-product-action,
+.tvak-hamper-panel .tvak-hamper-shade-button,
+.tvak-hamper-panel .tvak-hamper-submit {
+  all: unset !important;
+  box-sizing: border-box !important;
+  background-image: none !important;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+  letter-spacing: 0 !important;
+  transform: none !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-qty button::before,
+.tvak-hamper-panel .tvak-hamper-qty button::after,
+.tvak-hamper-panel .tvak-hamper-product-action::before,
+.tvak-hamper-panel .tvak-hamper-product-action::after,
+.tvak-hamper-panel .tvak-hamper-shade-button::before,
+.tvak-hamper-panel .tvak-hamper-shade-button::after,
+.tvak-hamper-panel .tvak-hamper-submit::before,
+.tvak-hamper-panel .tvak-hamper-submit::after {
+  content: none !important;
+  display: none !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-qty button {
+  display: grid !important;
+  place-items: center !important;
+  width: 38px !important;
+  height: 36px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fffaf4 !important;
+  color: var(--tvak-wine) !important;
+  cursor: pointer !important;
+  font-family: Georgia, "Times New Roman", serif !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-qty button:hover {
+  background: #f6eadc !important;
+  color: var(--tvak-ink) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-qty span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 36px;
+  color: var(--tvak-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tvak-hamper-panel .tvak-hamper-product-action,
+.tvak-hamper-panel .tvak-hamper-submit {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  padding: 0 14px !important;
+  text-align: center !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-product-action {
+  height: 38px !important;
+  border: 1px solid rgba(107, 31, 47, 0.2) !important;
+  background: linear-gradient(135deg, #5b1128 0%, #c35540 100%) !important;
+  color: #ffffff !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-item.is-selected .tvak-hamper-product-action {
+  border-color: rgba(185, 132, 58, 0.38) !important;
+  background: #fff6e7 !important;
+  color: var(--tvak-wine) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-product-action:hover {
+  box-shadow: 0 6px 18px rgba(107, 31, 47, 0.2) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-variation-row {
+  display: grid;
+  grid-template-rows: auto 32px auto;
+  min-height: 92px;
+  overflow: visible;
+  padding: 10px 12px 12px;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-label {
+  margin: 0 0 8px;
+  color: var(--tvak-wine);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  overflow: visible;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-button {
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 auto !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  border: 1px solid rgba(120, 97, 91, 0.22) !important;
+  border-radius: 50% !important;
+  background: #fffdf9 !important;
+  box-shadow: 0 1px 4px rgba(36, 21, 19, 0.08) !important;
+  cursor: pointer !important;
+  overflow: visible !important;
+  padding: 4px !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-button span {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.86) !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 1px rgba(36, 21, 19, 0.28) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-button:hover {
+  border-color: rgba(185, 132, 58, 0.76) !important;
+  transform: translateY(-1px) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-shade-button.is-active {
+  border-color: var(--tvak-gold) !important;
+  box-shadow: 0 0 0 2px rgba(185, 132, 58, 0.2), 0 5px 14px rgba(36, 21, 19, 0.16) !important;
+}
+
+.tvak-hamper-panel .tvak-hamper-selected-shade {
+  min-width: 0;
+  margin-top: 8px;
+  color: var(--tvak-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+  grid-template-columns: repeat(2, minmax(172px, 1fr));
+  gap: 10px;
+  padding: 10px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+  grid-template-rows: 112px minmax(116px, 1fr) 78px 88px;
+  min-height: 394px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:not(:has(.tvak-hamper-variation-row))::after {
+  min-height: 88px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+  width: 82px;
+  height: 86px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body h3 {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body p {
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+  grid-template-rows: 34px 36px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty span {
+  height: 34px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty {
+  grid-template-columns: 34px minmax(30px, 1fr) 34px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty button {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+  height: 36px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button {
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 26px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button span {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+@media (max-width: 520px) {
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items,
+  .tvak-hamper-panel .tvak-hamper-items {
+    grid-template-columns: 1fr;
+  }
+
+  .tvak-hamper-panel .tvak-hamper-item,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+    grid-template-rows: 118px minmax(104px, auto) 78px auto;
+    min-height: 0;
+  }
+}
+
+/* Approved mockup alignment: one premium horizontal product row on desktop. */
+.tvak-hamper-builder.is-inside-summary {
+  width: min(100%, 960px);
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel {
+  border-color: rgba(185, 132, 58, 0.34);
+  background: #fffaf3;
+  box-shadow: 0 16px 38px rgba(25, 8, 12, 0.12);
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header {
+  align-items: flex-start;
+  padding: 10px 12px 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header h2 {
+  margin-bottom: 2px;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header p {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-count {
+  padding: 5px 7px;
+  font-size: 9px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+  grid-template-rows: 92px 108px 66px 68px;
+  min-width: 0;
+  min-height: 334px;
+  border-radius: 7px;
+  background: #fffdf9;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:not(:has(.tvak-hamper-variation-row))::after {
+  min-height: 68px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:hover {
+  transform: translateY(-1px);
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap {
+  padding: 10px 8px 4px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+  width: 64px;
+  height: 74px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-badge {
+  top: 6px;
+  right: 6px;
+  max-width: 46px;
+  overflow: hidden;
+  padding: 3px 5px;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body {
+  gap: 6px;
+  padding: 0 8px 7px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  -webkit-line-clamp: 2;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body p {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.35;
+  -webkit-line-clamp: 3;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-price {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+  grid-template-rows: 28px 30px;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty {
+  grid-template-columns: 28px minmax(24px, 1fr) 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty button {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 15px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty span {
+  height: 28px;
+  font-size: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+  height: 30px !important;
+  min-height: 30px !important;
+  border-radius: 6px !important;
+  font-size: 9.5px !important;
+  padding: 0 8px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-variation-row {
+  grid-template-rows: auto 24px auto;
+  min-height: 68px;
+  padding: 7px 8px 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-label {
+  margin: 0 0 6px;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-list {
+  gap: 5px;
+  min-height: 24px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button {
+  width: 22px !important;
+  min-width: 22px !important;
+  height: 22px !important;
+  padding: 3px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button span {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-selected-shade {
+  margin-top: 5px;
+  font-size: 8.5px;
+  line-height: 1.2;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+  grid-template-columns: minmax(0, 1fr) auto 132px;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+  grid-column: auto;
+  width: 132px !important;
+  min-height: 36px !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+    grid-column: 1 / -1;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+    grid-template-columns: 1fr;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+    grid-template-rows: 96px minmax(96px, auto) 66px auto;
+  }
+}
+
+/* Current approved layout: premium hamper list, scoped to the builder only. */
+.tvak-hamper-builder,
+.tvak-hamper-builder.is-inside-summary {
+  width: min(100%, 1040px);
+}
+
+.tvak-hamper-builder .tvak-hamper-panel {
+  border-color: rgba(211, 161, 91, 0.42);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffdf9 0%, #fff8ef 100%);
+  box-shadow: 0 18px 48px rgba(26, 7, 13, 0.16);
+}
+
+.tvak-hamper-builder .tvak-hamper-header,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header {
+  align-items: flex-start;
+  padding: 18px 22px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.tvak-hamper-builder .tvak-hamper-header h2,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header h2 {
+  margin: 0 0 4px;
+  color: #1f1413;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 25px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.08;
+}
+
+.tvak-hamper-builder .tvak-hamper-header p,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-header p {
+  color: #665a55;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.tvak-hamper-builder .tvak-hamper-count,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-count {
+  border-color: rgba(122, 35, 55, 0.18);
+  border-radius: 6px;
+  background: #fffdf9;
+  color: #7a2337;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 16px;
+}
+
+.tvak-hamper-builder .tvak-hamper-items,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+  display: block !important;
+  padding: 0 22px 16px;
+}
+
+.tvak-hamper-builder .tvak-hamper-item,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+  display: grid !important;
+  grid-template-columns: 190px minmax(0, 1fr) minmax(230px, 330px);
+  grid-template-areas:
+    "image body controls"
+    "image variation controls";
+  gap: 0 24px;
+  min-height: 0;
+  padding: 14px;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid rgba(211, 161, 91, 0.34);
+  border-radius: 0;
+  background: rgba(255, 253, 249, 0.7);
+  box-shadow: none;
+  transition: background-color 160ms ease;
+}
+
+.tvak-hamper-builder .tvak-hamper-item:first-child,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:first-child {
+  border-top: 1px solid rgba(211, 161, 91, 0.34);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.tvak-hamper-builder .tvak-hamper-item:last-child,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.tvak-hamper-builder .tvak-hamper-item:hover,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:hover {
+  transform: none;
+  background: #fffaf3;
+  box-shadow: none;
+}
+
+.tvak-hamper-builder .tvak-hamper-item:not(:has(.tvak-hamper-variation-row))::after,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:not(:has(.tvak-hamper-variation-row))::after {
+  content: none;
+  display: none;
+}
+
+.tvak-hamper-builder .tvak-hamper-image-wrap,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap {
+  grid-area: image;
+  min-height: 0;
+  padding: 0;
+  align-self: start;
+}
+
+.tvak-hamper-builder .tvak-hamper-image-wrap img,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+  width: 100%;
+  height: 104px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.tvak-hamper-builder .tvak-hamper-badge,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-badge {
+  top: 8px;
+  right: 8px;
+  max-width: none;
+  border-color: rgba(211, 161, 91, 0.45);
+  background: rgba(255, 250, 243, 0.94);
+  color: #8a263c;
+  font-size: 10px;
+  padding: 5px 8px;
+}
+
+.tvak-hamper-builder .tvak-hamper-item-body,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body {
+  grid-area: body;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: center;
+  gap: 8px;
+  min-height: 104px;
+  padding: 0;
+}
+
+.tvak-hamper-builder .tvak-hamper-item-body h3,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body h3 {
+  display: block;
+  min-height: 0;
+  margin: 0;
+  overflow: visible;
+  color: #1f1413;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.tvak-hamper-builder .tvak-hamper-item-body p,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body p {
+  display: block;
+  min-height: 0;
+  margin: 0;
+  overflow: visible;
+  color: #655c58;
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.tvak-hamper-builder .tvak-hamper-price,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-price {
+  margin: 2px 0 0;
+  color: #120c0b;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.tvak-hamper-builder .tvak-hamper-controls,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+  grid-area: controls;
+  display: grid;
+  grid-template-columns: minmax(128px, 150px) minmax(132px, 176px);
+  grid-template-rows: 44px;
+  align-self: center;
+  align-items: center;
+  justify-content: end;
+  gap: 18px;
+  padding: 0;
+}
+
+.tvak-hamper-builder .tvak-hamper-qty,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty {
+  display: grid;
+  grid-template-columns: 42px minmax(42px, 1fr) 42px;
+  width: 100%;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid rgba(107, 31, 47, 0.18);
+  border-radius: 6px;
+  background: #fffdf9;
+}
+
+.tvak-hamper-builder .tvak-hamper-qty button,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty button {
+  display: grid !important;
+  place-items: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 0 !important;
+  background: #fffdf9 !important;
+  color: #7a1830 !important;
+  font-size: 21px !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-qty span,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty span {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  border-color: rgba(107, 31, 47, 0.14);
+  color: #120c0b;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tvak-hamper-builder .tvak-hamper-product-action,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  border: 1px solid rgba(122, 35, 55, 0.28) !important;
+  border-radius: 7px !important;
+  background: #fff7ed !important;
+  color: #7a2337 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  padding: 0 14px !important;
+  text-transform: uppercase !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-item:not(.is-selected) .tvak-hamper-product-action,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item:not(.is-selected) .tvak-hamper-product-action {
+  background: linear-gradient(135deg, #68152d 0%, #bd4f3f 100%) !important;
+  color: #ffffff !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-variation-row,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-variation-row {
+  grid-area: variation;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  min-height: 0;
+  margin-top: 12px;
+  overflow: visible;
+  border-top: 0;
+  padding: 0;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-label,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-label {
+  margin: 0 0 8px;
+  color: #7a2337;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-list,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-height: 32px;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-button,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button {
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 26px !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 26px !important;
+  border: 1px solid rgba(107, 31, 47, 0.18) !important;
+  border-radius: 50% !important;
+  background: #fffdf9 !important;
+  box-shadow: 0 1px 4px rgba(28, 8, 13, 0.1) !important;
+  overflow: visible !important;
+  padding: 3px !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-button span,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button span {
+  width: 18px !important;
+  height: 18px !important;
+  border: 1px solid rgba(255, 255, 255, 0.86) !important;
+  border-radius: 50% !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-button:hover,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button:hover {
+  border-color: rgba(211, 161, 91, 0.9) !important;
+  transform: translateY(-1px) !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-shade-button.is-active,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button.is-active {
+  border-color: #c28b43 !important;
+  box-shadow: 0 0 0 2px rgba(194, 139, 67, 0.24), 0 5px 14px rgba(28, 8, 13, 0.15) !important;
+}
+
+.tvak-hamper-builder .tvak-hamper-selected-shade,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-selected-shade {
+  margin-top: 7px;
+  color: #665a55;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.tvak-hamper-builder .tvak-hamper-footer,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(190px, 250px);
+  gap: 22px;
+  padding: 16px 22px 18px;
+  border-top: 1px solid rgba(211, 161, 91, 0.3);
+  background: rgba(255, 253, 249, 0.88);
+}
+
+.tvak-hamper-builder .tvak-hamper-summary strong,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-summary strong {
+  color: #120c0b;
+  font-size: 17px;
+}
+
+.tvak-hamper-builder .tvak-hamper-message,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-message {
+  color: #665a55;
+  font-size: 14px;
+}
+
+.tvak-hamper-builder .tvak-hamper-total strong,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-total strong {
+  color: #120c0b;
+  font-size: 28px;
+}
+
+.tvak-hamper-builder .tvak-hamper-submit,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+  grid-column: auto;
+  width: 100% !important;
+  min-height: 48px !important;
+  border-radius: 7px !important;
+  background: linear-gradient(135deg, #68152d 0%, #9a2847 100%) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+}
+
+@media (max-width: 900px) {
+  .tvak-hamper-builder .tvak-hamper-item,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+    grid-template-columns: 150px minmax(0, 1fr);
+    grid-template-areas:
+      "image body"
+      "image variation"
+      "controls controls";
+    gap: 14px 18px;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-controls,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+    grid-template-columns: minmax(130px, 1fr) minmax(150px, 1fr);
+    justify-content: stretch;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-footer,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-submit,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .tvak-hamper-builder .tvak-hamper-header,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-header,
+  .tvak-hamper-builder .tvak-hamper-footer,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-items,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-item,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "image"
+      "body"
+      "variation"
+      "controls";
+  }
+
+  .tvak-hamper-builder .tvak-hamper-image-wrap img,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+    height: 170px;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-controls,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+    grid-template-columns: 1fr;
+    grid-template-rows: 44px 44px;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-footer,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .tvak-hamper-builder .tvak-hamper-total,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-total {
+    text-align: left;
+  }
+}
+
+/* Narrow product-summary placement: prevent desktop columns from crushing text. */
+.tvak-hamper-builder.is-inside-summary {
+  max-width: 100%;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel {
+  container-type: inline-size;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+  grid-template-columns: 126px minmax(0, 1fr);
+  grid-template-rows: auto auto auto !important;
+  grid-template-areas:
+    "image body"
+    "variation variation"
+    "controls controls";
+  align-items: start;
+  gap: 8px 14px;
+  padding: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+  height: 78px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body {
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body h3 {
+  display: block;
+  max-width: 100%;
+  font-size: 16px;
+  line-height: 1.22;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body p {
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-price {
+  font-size: 15px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-variation-row {
+  margin-top: 0;
+  padding: 0;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-list {
+  gap: 8px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button {
+  flex-basis: 24px !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-shade-button span {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+  grid-template-columns: minmax(112px, 1fr) minmax(118px, 1fr);
+  gap: 10px;
+  align-self: stretch;
+  margin-top: 2px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty {
+  grid-template-columns: 36px minmax(34px, 1fr) 36px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty button {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 18px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty span {
+  height: 36px;
+  font-size: 15px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+  font-size: 10px !important;
+  padding: 0 10px !important;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-submit {
+  grid-column: 1 / -1;
+}
+
+.tvak-hamper-builder .tvak-hamper-submit.is-added,
+.tvak-hamper-builder.is-inside-summary .tvak-hamper-submit.is-added {
+  background: #fff7ed !important;
+  border: 1px solid rgba(122, 35, 55, 0.28) !important;
+  color: #7a2337 !important;
+}
+
+@container (max-width: 390px) {
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-header,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-footer {
+    padding: 12px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-items {
+    padding: 0 12px 12px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-header h2 {
+    font-size: 20px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-header p {
+    font-size: 13px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-count {
+    font-size: 11px;
+    padding: 7px 9px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item {
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-rows: auto auto auto !important;
+    gap: 7px 11px;
+    padding: 10px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-image-wrap img {
+    height: 68px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-badge {
+    top: 5px;
+    right: 5px;
+    font-size: 8px;
+    padding: 4px 6px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body h3 {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-item-body p {
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-price {
+    font-size: 13px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-controls {
+    grid-template-columns: 1fr;
+    grid-template-rows: 36px 36px;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-qty,
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-panel .tvak-hamper-product-action {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .tvak-hamper-builder.is-inside-summary .tvak-hamper-total strong {
+    font-size: 21px;
+  }
+}

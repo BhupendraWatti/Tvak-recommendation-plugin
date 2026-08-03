@@ -31,6 +31,7 @@ class Tvak_Admin {
         add_action('admin_post_tvak_toggle_product_has_shades', [__CLASS__, 'handle_toggle_product_has_shades']);
         add_action('admin_post_tvak_save_bundle_discounts', [__CLASS__, 'handle_save_bundle_discounts']);
         add_action('admin_post_tvak_sync_catalog', [__CLASS__, 'handle_post_sync_catalog']);
+        add_action('admin_post_tvak_save_hamper', [__CLASS__, 'handle_save_hamper']);
     }
 
     /**
@@ -81,6 +82,15 @@ class Tvak_Admin {
             'manage_options',
             'tvak-shades',
             [__CLASS__, 'render_shades_page']
+        );
+
+        add_submenu_page(
+            'tvak-engine',
+            __('Custom Hamper Builder', 'tvak-beauty-kit'),
+            __('Custom Hampers', 'tvak-beauty-kit'),
+            'manage_options',
+            'tvak-hampers',
+            [__CLASS__, 'render_hampers_page']
         );
 
         add_submenu_page(
@@ -1521,6 +1531,184 @@ class Tvak_Admin {
     }
 
     /**
+     * Render Custom Hampers admin page.
+     */
+    public static function render_hampers_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $wc_products = get_posts([
+            'post_type'      => 'product',
+            'posts_per_page' => -1,
+            'post_status'    => ['publish', 'draft'],
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ]);
+
+        $selected_product_id = isset($_GET['hamper_product_id'])
+            ? (int) $_GET['hamper_product_id']
+            : (isset($wc_products[0]) ? (int) $wc_products[0]->ID : 0);
+
+        $hamper = ($selected_product_id && class_exists('Tvak_Hamper'))
+            ? Tvak_Hamper::get_by_product_id($selected_product_id, false)
+            : null;
+
+        $existing_items = [];
+        if ($hamper) {
+            foreach (Tvak_Hamper::get_items((int) $hamper['hamper_id']) as $item) {
+                $existing_items[(int) $item['product_id']] = $item;
+            }
+        }
+
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('TVAK Custom Hamper Builder', 'tvak-beauty-kit'); ?></h1>
+            <p><?php esc_html_e('Designate one WooCommerce product as a hamper shell, then choose the exact catalog products customers can include. Normal products remain unchanged.', 'tvak-beauty-kit'); ?></p>
+
+            <?php if (isset($_GET['message']) && $_GET['message'] === 'saved') : ?>
+                <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Custom hamper saved successfully.', 'tvak-beauty-kit'); ?></p></div>
+            <?php endif; ?>
+
+            <div class="tvak-admin-container">
+                <div class="tvak-admin-main">
+                    <div class="postbox" style="padding: 20px; background: #fff;">
+                        <form method="get" action="">
+                            <input type="hidden" name="page" value="tvak-hampers" />
+                            <label for="hamper_product_id"><strong><?php esc_html_e('Hamper Shell Product:', 'tvak-beauty-kit'); ?></strong></label>
+                            <select name="hamper_product_id" id="hamper_product_id" onchange="this.form.submit()" style="min-width: 320px; margin-left: 10px;">
+                                <?php foreach ($wc_products as $p) : ?>
+                                    <option value="<?php echo esc_attr($p->ID); ?>" <?php selected($selected_product_id, $p->ID); ?>>
+                                        <?php echo esc_html($p->post_title); ?> (ID: <?php echo esc_html($p->ID); ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    </div>
+
+                    <?php if ($selected_product_id) : ?>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="tvak_save_hamper" />
+                            <input type="hidden" name="hamper_id" value="<?php echo esc_attr($hamper['hamper_id'] ?? 0); ?>" />
+                            <input type="hidden" name="hamper_product_id" value="<?php echo esc_attr($selected_product_id); ?>" />
+                            <?php wp_nonce_field('tvak_save_hamper_nonce', 'tvak_nonce'); ?>
+
+                            <div class="postbox" style="padding: 20px; background: #fff;">
+                                <h2><?php esc_html_e('Hamper Settings', 'tvak-beauty-kit'); ?>: <em><?php echo esc_html(get_the_title($selected_product_id)); ?></em></h2>
+                                <table class="form-table">
+                                    <tr>
+                                        <th scope="row"><label for="title"><?php esc_html_e('Hamper Display Title', 'tvak-beauty-kit'); ?></label></th>
+                                        <td><input type="text" name="title" id="title" value="<?php echo esc_attr($hamper['title'] ?? get_the_title($selected_product_id)); ?>" class="regular-text" /></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><label for="min_items"><?php esc_html_e('Minimum Products', 'tvak-beauty-kit'); ?></label></th>
+                                        <td><input type="number" name="min_items" id="min_items" min="1" max="20" value="<?php echo esc_attr($hamper['min_items'] ?? 2); ?>" class="small-text" /></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><label for="max_items"><?php esc_html_e('Maximum Products', 'tvak-beauty-kit'); ?></label></th>
+                                        <td><input type="number" name="max_items" id="max_items" min="1" max="20" value="<?php echo esc_attr($hamper['max_items'] ?? 5); ?>" class="small-text" /></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><?php esc_html_e('Optional Products', 'tvak-beauty-kit'); ?></th>
+                                        <td><label><input type="checkbox" name="allow_optional_items" value="1" <?php checked($hamper['allow_optional_items'] ?? 1, 1); ?> /> <?php esc_html_e('Allow customers to add optional products.', 'tvak-beauty-kit'); ?></label></td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><?php esc_html_e('Status', 'tvak-beauty-kit'); ?></th>
+                                        <td><label><input type="checkbox" name="is_active" value="1" <?php checked($hamper['is_active'] ?? 1, 1); ?> /> <?php esc_html_e('Active Hamper Product', 'tvak-beauty-kit'); ?></label></td>
+                                    </tr>
+                                </table>
+
+                                <hr />
+                                <h3><?php esc_html_e('Assigned Hamper Products', 'tvak-beauty-kit'); ?></h3>
+                                <p class="description"><?php esc_html_e('Checked products are eligible inside this hamper. Required products cannot be removed by customers. Variable products will require a variation choice on the frontend.', 'tvak-beauty-kit'); ?></p>
+
+                                <table class="widefat striped">
+                                    <thead>
+                                        <tr>
+                                            <th><?php esc_html_e('Include', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Product', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Default Qty', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Preselected', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Required', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Optional', 'tvak-beauty-kit'); ?></th>
+                                            <th><?php esc_html_e('Order', 'tvak-beauty-kit'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($wc_products as $p) :
+                                            if ((int) $p->ID === $selected_product_id) {
+                                                continue;
+                                            }
+                                            $item = $existing_items[(int) $p->ID] ?? [];
+                                            $wc_product = function_exists('wc_get_product') ? wc_get_product($p->ID) : null;
+                                        ?>
+                                            <tr>
+                                                <td><input type="checkbox" name="hamper_items[<?php echo esc_attr($p->ID); ?>][enabled]" value="1" <?php checked(!empty($item)); ?> /></td>
+                                                <td>
+                                                    <strong><?php echo esc_html($p->post_title); ?></strong>
+                                                    <br /><small><?php echo esc_html($wc_product ? $wc_product->get_type() : 'product'); ?> | ID: <?php echo esc_html($p->ID); ?></small>
+                                                </td>
+                                                <td><input type="number" name="hamper_items[<?php echo esc_attr($p->ID); ?>][default_quantity]" min="1" max="20" value="<?php echo esc_attr($item['default_quantity'] ?? 1); ?>" class="small-text" /></td>
+                                                <td><input type="checkbox" name="hamper_items[<?php echo esc_attr($p->ID); ?>][is_preselected]" value="1" <?php checked($item['is_preselected'] ?? 1, 1); ?> /></td>
+                                                <td><input type="checkbox" name="hamper_items[<?php echo esc_attr($p->ID); ?>][is_required]" value="1" <?php checked($item['is_required'] ?? 0, 1); ?> /></td>
+                                                <td><input type="checkbox" name="hamper_items[<?php echo esc_attr($p->ID); ?>][is_optional]" value="1" <?php checked($item['is_optional'] ?? 0, 1); ?> /></td>
+                                                <td><input type="number" name="hamper_items[<?php echo esc_attr($p->ID); ?>][sort_order]" min="0" max="999" value="<?php echo esc_attr($item['sort_order'] ?? 0); ?>" class="small-text" /></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+
+                                <p class="submit">
+                                    <input type="submit" class="button button-primary button-large" value="<?php esc_attr_e('Save Custom Hamper', 'tvak-beauty-kit'); ?>" />
+                                </p>
+                            </div>
+                        </form>
+                    <?php endif; ?>
+                </div>
+
+                <div class="tvak-admin-sidebar">
+                    <?php self::render_right_sidebar_guide('hampers'); ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Persist a custom hamper configuration.
+     */
+    public static function handle_save_hamper() {
+        check_admin_referer('tvak_save_hamper_nonce', 'tvak_nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'tvak-beauty-kit'));
+        }
+
+        $hamper_product_id = isset($_POST['hamper_product_id']) ? (int) $_POST['hamper_product_id'] : 0;
+
+        if ($hamper_product_id && class_exists('Tvak_Hamper')) {
+            $hamper_id = Tvak_Hamper::save_hamper([
+                'hamper_id'            => (int) ($_POST['hamper_id'] ?? 0),
+                'hamper_product_id'    => $hamper_product_id,
+                'title'                => sanitize_text_field($_POST['title'] ?? ''),
+                'min_items'            => (int) ($_POST['min_items'] ?? 2),
+                'max_items'            => (int) ($_POST['max_items'] ?? 5),
+                'allow_optional_items' => !empty($_POST['allow_optional_items']) ? 1 : 0,
+                'is_active'            => !empty($_POST['is_active']) ? 1 : 0,
+            ]);
+
+            Tvak_Hamper::save_items($hamper_id, $_POST['hamper_items'] ?? []);
+
+            if (class_exists('Tvak_Cache')) {
+                Tvak_Cache::invalidate_rules_cache();
+            }
+        }
+
+        wp_redirect(admin_url('admin.php?page=tvak-hampers&hamper_product_id=' . $hamper_product_id . '&message=saved'));
+        exit;
+    }
+
+    /**
      * Render Bundle Discount Settings Page.
      *
      * Allows admin to configure tiered bundle discount thresholds without
@@ -1918,6 +2106,44 @@ class Tvak_Admin {
                 'tip' => __('Auto-Sync Tip: Clicking "Auto-Sync WooCommerce Catalog & Swatches" automatically imports swatch colors from your existing store variations without manual entry!', 'tvak-beauty-kit'),
             ],
 
+            'hampers' => [
+                'title'    => __('Custom Hampers How-To Guide', 'tvak-beauty-kit'),
+                'subtitle' => __('Easy step-by-step guide to building designated hamper products without changing normal products.', 'tvak-beauty-kit'),
+                'steps'    => [
+                    [
+                        'num'   => '1',
+                        'title' => __('Choose Hamper Shell', 'tvak-beauty-kit'),
+                        'text'  => __('Select the WooCommerce product page that should display the hamper builder. This shell product is not added to cart.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '2',
+                        'title' => __('Set Min and Max', 'tvak-beauty-kit'),
+                        'text'  => __('Use the minimum and maximum fields to enforce how many child products customers must choose.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '3',
+                        'title' => __('Assign Products', 'tvak-beauty-kit'),
+                        'text'  => __('Check each WooCommerce product that belongs inside this hamper. Every included product starts with quantity 1 by default.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '4',
+                        'title' => __('Required vs Optional', 'tvak-beauty-kit'),
+                        'text'  => __('Required products cannot be removed. Optional products appear as add-ons only when optional items are enabled.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '5',
+                        'title' => __('Variable Products', 'tvak-beauty-kit'),
+                        'text'  => __('If an assigned product has variations, shoppers must choose a valid shade, size, or other option before adding the hamper.', 'tvak-beauty-kit'),
+                    ],
+                    [
+                        'num'   => '6',
+                        'title' => __('Cart Result', 'tvak-beauty-kit'),
+                        'text'  => __('The final cart contains only selected child products, grouped by hamper metadata for fulfillment.', 'tvak-beauty-kit'),
+                    ],
+                ],
+                'tip' => __('Setup Tip: Create a dedicated product such as "TVAK Personalized Hamper", then configure that product here as the hamper shell.', 'tvak-beauty-kit'),
+            ],
+
             'simulator' => [
                 'title'    => __('Rule Simulator How-To Guide', 'tvak-beauty-kit'),
                 'subtitle' => __('Easy step-by-step guide to testing customer quiz scenarios in real time.', 'tvak-beauty-kit'),
@@ -2137,6 +2363,7 @@ class Tvak_Admin {
                     <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-engine')); ?>" class="button button-small <?php echo $active_section === 'product_rules' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Product Rules', 'tvak-beauty-kit'); ?></a></li>
                     <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-variant-matrix')); ?>" class="button button-small <?php echo $active_section === 'variant_matrix' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Variant Matrix', 'tvak-beauty-kit'); ?></a></li>
                     <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-shades')); ?>" class="button button-small <?php echo $active_section === 'shades' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Shades', 'tvak-beauty-kit'); ?></a></li>
+                    <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-hampers')); ?>" class="button button-small <?php echo $active_section === 'hampers' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Hampers', 'tvak-beauty-kit'); ?></a></li>
                     <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-simulator')); ?>" class="button button-small <?php echo $active_section === 'simulator' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Simulator', 'tvak-beauty-kit'); ?></a></li>
                     <li><a href="<?php echo esc_url(admin_url('admin.php?page=tvak-bundle-discount')); ?>" class="button button-small <?php echo $active_section === 'bundle_discount' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Bundle Discounts', 'tvak-beauty-kit'); ?></a></li>
                 </ul>

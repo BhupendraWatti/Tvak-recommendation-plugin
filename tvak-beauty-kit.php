@@ -3,7 +3,7 @@
  * Plugin Name: TVAK Personalized Beauty Recommendation Engine
  * Plugin URI: https://tvak.com/personalized-beauty-kit
  * Description: Intelligent, product-centric recommendation engine for TVAK's "Build Your Personalized Beauty Kit" experience.
- * Version: 2.1.2
+ * Version: 2.2.6
  * Author: TVAK Architecture Team
  * Text Domain: tvak-beauty-kit
  * Domain Path: /languages
@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Plugin Constants
-define('TVAK_VERSION', '2.1.2');
-define('TVAK_DB_VERSION', '2.1.0');
+define('TVAK_VERSION', '2.2.6');
+define('TVAK_DB_VERSION', '2.2.0');
 define('TVAK_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TVAK_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('TVAK_PLUGIN_FILE', __FILE__);
@@ -80,6 +80,7 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-shade.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-shade-sync.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-hamper.php';
 
         // Load Engine Classes
         require_once TVAK_PLUGIN_DIR . 'includes/engine/class-tvak-user-profile.php';
@@ -175,6 +176,7 @@ final class Tvak_Beauty_Kit {
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-variant-map.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-product-shade.php';
         require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-shade-sync.php';
+        require_once TVAK_PLUGIN_DIR . 'includes/models/class-tvak-hamper.php';
 
         Tvak_DB::create_tables();
         Tvak_DB::seed_defaults();

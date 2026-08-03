@@ -172,6 +172,10 @@ class Tvak_WooCommerce {
                 continue;
             }
 
+            if (class_exists('Tvak_Product_Rule') && Tvak_Product_Rule::is_excluded_from_recommendations($product_id)) {
+                continue;
+            }
+
             // Custom cart item meta attached to line item
             $cart_item_data = [
                 '_tvak_kit_id'              => $kit_id,

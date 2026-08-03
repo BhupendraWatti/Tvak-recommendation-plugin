@@ -75,7 +75,7 @@ class Tvak_Product_Rule {
         $cache_key = 'active_rules_grouped';
         $cached    = class_exists('Tvak_Cache') ? Tvak_Cache::get($cache_key) : false;
         if ($cached !== false && $cached !== null) {
-            return $cached;
+            return self::remove_excluded_products_from_grouped_rules($cached);
         }
 
         // Auto-discover any newly added WooCommerce products that lack a rule
@@ -127,6 +127,10 @@ class Tvak_Product_Rule {
         }
 
         foreach ($rules_map as $rule_id => $rule) {
+            if (self::is_excluded_from_recommendations((int) $rule['product_id'])) {
+                continue;
+            }
+
             $slot_id = $rule['slot_id'];
             if (!isset($grouped[$slot_id])) {
                 $grouped[$slot_id] = [];
@@ -271,6 +275,10 @@ class Tvak_Product_Rule {
         $reconciled = 0;
         foreach ($unmapped_ids as $pid) {
             $product_id = (int) $pid;
+            if (self::is_excluded_from_recommendations($product_id)) {
+                continue;
+            }
+
             $slot_id    = class_exists('Tvak_Shade_Sync') ? Tvak_Shade_Sync::detect_product_kit_slot($product_id) : 0;
             if (!$slot_id && class_exists('Tvak_DB')) {
                 Tvak_DB::sync_wc_kit_slots();
@@ -290,5 +298,48 @@ class Tvak_Product_Rule {
         }
 
         return $reconciled;
+    }
+
+    public static function is_excluded_from_recommendations(int $product_id): bool {
+        if (!$product_id) {
+            return true;
+        }
+
+        if (get_post_meta($product_id, '_tvak_is_hamper_product', true) === 'yes') {
+            return true;
+        }
+
+        global $wpdb;
+        $hampers_table = $wpdb->prefix . 'tvak_hampers';
+        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $hampers_table)) === $hampers_table;
+        if ($table_exists) {
+            $is_hamper = (int) $wpdb->get_var(
+                $wpdb->prepare("SELECT COUNT(*) FROM {$hampers_table} WHERE hamper_product_id = %d AND is_active = 1", $product_id)
+            );
+            if ($is_hamper > 0) {
+                return true;
+            }
+        }
+
+        $title = strtolower((string) get_the_title($product_id));
+        if (strpos($title, 'hamper') !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function remove_excluded_products_from_grouped_rules(array $grouped): array {
+        foreach ($grouped as $slot_id => $rules) {
+            $grouped[$slot_id] = array_values(array_filter((array) $rules, static function($rule) {
+                return !self::is_excluded_from_recommendations((int) ($rule['product_id'] ?? 0));
+            }));
+
+            if (empty($grouped[$slot_id])) {
+                unset($grouped[$slot_id]);
+            }
+        }
+
+        return $grouped;
     }
 }

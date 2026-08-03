@@ -76,7 +76,8 @@ class Tvak_Master_Data {
 
         foreach ($attributes as &$attr) {
             $code = $attr['attribute_code'];
-            $attr['terms'] = $terms_by_attr[$code] ?? [];
+            $raw_terms = $terms_by_attr[$code] ?? [];
+            $attr['terms'] = self::deduplicate_terms($raw_terms);
             
             // Generate legacy options format array for backward compatibility
             $options = [];
@@ -197,7 +198,8 @@ class Tvak_Master_Data {
             ARRAY_A
         );
 
-        $attr['terms'] = $terms ?: [];
+        $raw_terms = $terms ?: [];
+        $attr['terms'] = self::deduplicate_terms($raw_terms);
         $options = [];
         foreach ($attr['terms'] as $t) {
             $options[$t['term_slug']] = $t['label'];
@@ -205,6 +207,55 @@ class Tvak_Master_Data {
         $attr['options'] = $options;
 
         return $attr;
+    }
+
+    /**
+     * Deduplicate terms for diagnostic attributes by normalizing labels and slugs.
+     * Prevents redundant terms (e.g. Fine Lines & Wrinkles, Sensitivity & Redness) from rendering twice.
+     *
+     * @param array $terms List of raw term rows.
+     * @return array Deduplicated term list.
+     */
+    public static function deduplicate_terms(array $terms): array {
+        if (empty($terms)) {
+            return [];
+        }
+
+        $unique = [];
+        $seen_keys = [];
+
+        foreach ($terms as $t) {
+            $label = strtolower(trim($t['label'] ?? ''));
+            $slug  = strtolower(trim($t['term_slug'] ?? ''));
+
+            $key = $slug;
+            if (str_contains($label, 'fine line') || str_contains($label, 'wrinkle')) {
+                $key = 'fine_lines';
+            } elseif (str_contains($label, 'redness') || str_contains($label, 'sensitiv')) {
+                $key = 'redness';
+            } elseif (str_contains($label, 'dry') || str_contains($label, 'dehydrat')) {
+                $key = 'dryness';
+            } elseif (str_contains($label, 'texture')) {
+                $key = 'texture';
+            } elseif (str_contains($label, 'pore')) {
+                $key = 'large_pores';
+            } elseif (str_contains($label, 'acne') || str_contains($label, 'blemish')) {
+                $key = 'acne';
+            } elseif (str_contains($label, 'hyperpigmentation') || str_contains($label, 'spot')) {
+                $key = 'hyperpigmentation';
+            } elseif (str_contains($label, 'dull')) {
+                $key = 'dullness';
+            } else {
+                $key = preg_replace('/[^a-z0-9]/', '', $label);
+            }
+
+            if (!in_array($key, $seen_keys, true)) {
+                $seen_keys[] = $key;
+                $unique[]    = $t;
+            }
+        }
+
+        return $unique;
     }
 
     /**

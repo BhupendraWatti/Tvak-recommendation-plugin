@@ -18,7 +18,7 @@ class Tvak_DB {
     /**
      * Current DB Version.
      */
-    const DB_VERSION = '2.1.0';
+    const DB_VERSION = '2.2.0';
 
     /**
      * Create or update custom database tables using dbDelta.
@@ -186,6 +186,43 @@ class Tvak_DB {
         ) {$charset_collate};";
         dbDelta($sql_shades);
         $wpdb->query("ALTER TABLE {$table_shades} MODIFY shade_hex VARCHAR(32) NOT NULL DEFAULT ''");
+
+        // 10. Custom Hamper Shell Definitions
+        $table_hampers = $wpdb->prefix . 'tvak_hampers';
+        $sql_hampers = "CREATE TABLE {$table_hampers} (
+            hamper_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            hamper_product_id BIGINT UNSIGNED NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            min_items INT UNSIGNED NOT NULL DEFAULT 2,
+            max_items INT UNSIGNED NOT NULL DEFAULT 5,
+            allow_optional_items TINYINT(1) NOT NULL DEFAULT 1,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (hamper_id),
+            UNIQUE KEY hamper_product_id (hamper_product_id),
+            KEY is_active (is_active)
+        ) {$charset_collate};";
+        dbDelta($sql_hampers);
+
+        // 11. Custom Hamper Assigned Products
+        $table_hamper_items = $wpdb->prefix . 'tvak_hamper_items';
+        $sql_hamper_items = "CREATE TABLE {$table_hamper_items} (
+            hamper_item_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            hamper_id BIGINT UNSIGNED NOT NULL,
+            product_id BIGINT UNSIGNED NOT NULL,
+            default_quantity INT UNSIGNED NOT NULL DEFAULT 1,
+            is_required TINYINT(1) NOT NULL DEFAULT 0,
+            is_preselected TINYINT(1) NOT NULL DEFAULT 1,
+            is_optional TINYINT(1) NOT NULL DEFAULT 0,
+            sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (hamper_item_id),
+            UNIQUE KEY hamper_product (hamper_id, product_id),
+            KEY hamper_id (hamper_id),
+            KEY product_id (product_id)
+        ) {$charset_collate};";
+        dbDelta($sql_hamper_items);
 
         update_option('tvak_db_version', self::DB_VERSION);
     }
