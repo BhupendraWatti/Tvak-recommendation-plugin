@@ -405,10 +405,10 @@
             <label class="tvak-luxury-pouch-option">
               <input type="checkbox" class="tvak-luxury-pouch-toggle" ${pouchChecked} ${pouch.is_in_stock === false ? 'disabled' : ''} />
               <span class="tvak-luxury-pouch-checkcopy">
-                <span class="tvak-luxury-pouch-title">This pouch will included as separate product in your cart</span>
-                <span class="tvak-luxury-pouch-note">${pouch.is_in_stock === false ? 'Currently out of stock' : ''}</span>
+                <span class="tvak-luxury-pouch-title">Deliver these products in the Luxury Pouch</span>
+                <span class="tvak-luxury-pouch-note">${pouch.is_in_stock === false ? 'Currently out of stock' : 'This pouch will included as separate product in your cart'}</span>
               </span>
-            </label>This pouch will included as separate product in your cart
+            </label>
             <div class="tvak-luxury-pouch-product">
               ${pouchImg}
               <span class="tvak-luxury-pouch-name">${self.escapeHtml(pouch.name)}</span>
