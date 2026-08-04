@@ -50,6 +50,7 @@ class Tvak_Shortcode {
             // Live WooCommerce currency data — JS uses these for price formatting
             'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol()) : '₹',
             'currency_code'   => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'INR',
+            'luxury_pouch'    => class_exists('Tvak_WooCommerce') ? Tvak_WooCommerce::get_luxury_pouch_data() : ['enabled' => false],
         ]);
 
 

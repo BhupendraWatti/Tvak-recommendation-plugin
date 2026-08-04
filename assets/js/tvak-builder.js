@@ -9,7 +9,7 @@
  * @version 1.1.0
  */
 
-(function($) {
+(function ($) {
   'use strict';
 
   var TvakApp = {
@@ -18,8 +18,9 @@
     quizConfig: null,
     profile: {},
     recommendationPayload: null,
+    luxuryPouchSelected: true,
 
-    init: function() {
+    init: function () {
       var self = this;
       self.$container = $('#tvak-beauty-kit-app');
 
@@ -32,7 +33,7 @@
       self.bindEvents();
     },
 
-    renderLoadingState: function() {
+    renderLoadingState: function () {
       var self = this;
       self.$container.html(`
         <div class="tvak-consultation-loading" style="padding:60px 20px; text-align:center;">
@@ -43,22 +44,22 @@
       `);
     },
 
-    fetchQuizConfig: function() {
+    fetchQuizConfig: function () {
       var self = this;
-      var configUrl = (tvak_vars && tvak_vars.api_url) 
+      var configUrl = (tvak_vars && tvak_vars.api_url)
         ? tvak_vars.api_url.replace('/recommend', '/quiz-config')
         : '/wp-json/tvak/v1/quiz-config';
 
       $.ajax({
         url: configUrl,
         type: 'GET',
-        success: function(res) {
+        success: function (res) {
           if (res && res.success && res.quiz_config && res.quiz_config.steps.length > 0) {
             self.quizConfig = res.quiz_config;
             self.totalSteps = res.quiz_config.total_steps;
 
             // Initialize default profile state from master attributes
-            res.quiz_config.steps.forEach(function(s) {
+            res.quiz_config.steps.forEach(function (s) {
               if (s.input_type === 'multi_select') {
                 self.profile[s.attribute_code] = [];
               } else {
@@ -71,14 +72,14 @@
             self.fallbackInit();
           }
         },
-        error: function(err) {
+        error: function (err) {
           console.warn('REST quiz-config fetch error, running fallback init:', err);
           self.fallbackInit();
         }
       });
     },
 
-    fallbackInit: function() {
+    fallbackInit: function () {
       var self = this;
       // Retry the REST endpoint once after a brief delay before using the static snapshot.
       // This handles race conditions where WP isn't fully bootstrapped on the first try.
@@ -86,15 +87,15 @@
         ? tvak_vars.api_url.replace('/recommend', '/quiz-config')
         : '/wp-json/tvak/v1/quiz-config';
 
-      setTimeout(function() {
+      setTimeout(function () {
         $.ajax({
           url: configUrl,
           type: 'GET',
-          success: function(res) {
+          success: function (res) {
             if (res && res.success && res.quiz_config && res.quiz_config.steps.length > 0) {
               self.quizConfig = res.quiz_config;
               self.totalSteps = res.quiz_config.total_steps;
-              res.quiz_config.steps.forEach(function(s) {
+              res.quiz_config.steps.forEach(function (s) {
                 if (s.input_type === 'multi_select') {
                   self.profile[s.attribute_code] = [];
                 } else {
@@ -106,14 +107,14 @@
               self.renderConfigurationError();
             }
           },
-          error: function() {
+          error: function () {
             self.renderConfigurationError();
           }
         });
       }, 3000);
     },
 
-    renderConfigurationError: function() {
+    renderConfigurationError: function () {
       var self = this;
       self.$container.html(`
         <div class="tvak-consultation-loading" style="padding:60px 20px; text-align:center;">
@@ -123,7 +124,7 @@
       `);
     },
 
-    renderLayout: function() {
+    renderLayout: function () {
       var self = this;
       var title = self.$container.data('title') || 'Build Your Personalized Beauty Kit';
       var subtitle = self.$container.data('subtitle') || 'Experience a bespoke digital skin consultation tailored to your unique skin profile.';
@@ -151,7 +152,7 @@
       self.renderStep(1);
     },
 
-    renderStep: function(step) {
+    renderStep: function (step) {
       var self = this;
       self.currentStep = step;
 
@@ -177,7 +178,7 @@
       var terms = stepDef.terms || [];
 
       var gridHtml = '';
-      terms.forEach(function(term) {
+      terms.forEach(function (term) {
         var slug = term.term_slug;
         var isSelected = false;
 
@@ -240,7 +241,7 @@
       $area.html(html);
     },
 
-    fetchRecommendation: function() {
+    fetchRecommendation: function () {
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
 
@@ -258,12 +259,12 @@
         type: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(self.profile),
-        beforeSend: function(xhr) {
+        beforeSend: function (xhr) {
           if (tvak_vars && tvak_vars.nonce) {
             xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
           }
         },
-        success: function(response) {
+        success: function (response) {
           if (response.success) {
             self.recommendationPayload = response;
             self.renderResults(response);
@@ -271,14 +272,14 @@
             $area.html('<p style="color:#FF6B6B; text-align:center;">Failed to compute recommendations. Please try again.</p>');
           }
         },
-        error: function(err) {
+        error: function (err) {
           console.error(err);
           $area.html('<p style="color:#FF6B6B; text-align:center;">API Error occurred. Please verify plugin configuration.</p>');
         }
       });
     },
 
-    escapeHtml: function(str) {
+    escapeHtml: function (str) {
       if (!str) return '';
       return String(str)
         .replace(/&/g, '&amp;')
@@ -288,18 +289,26 @@
         .replace(/'/g, '&#039;');
     },
 
-    renderResults: function(data) {
+    getLuxuryPouch: function () {
+      if (!tvak_vars || !tvak_vars.luxury_pouch || !tvak_vars.luxury_pouch.enabled) {
+        return null;
+      }
+      return tvak_vars.luxury_pouch;
+    },
+
+    renderResults: function (data) {
       var self = this;
       var $area = self.$container.find('.tvak-step-content-area');
 
-      data.items.forEach(function(item) {
+      data.items.forEach(function (item) {
         if (typeof item.selected === 'undefined') {
           item.selected = (item.is_in_stock !== false);
         }
       });
+      self.luxuryPouchSelected = true;
 
       var itemsHtml = '';
-      data.items.forEach(function(item, idx) {
+      data.items.forEach(function (item, idx) {
         var isChecked = item.selected ? 'checked' : '';
         var cardSelectedClass = item.selected ? 'selected-card' : 'unselected-card';
         var stockClass = item.is_in_stock === false ? 'out-of-stock-card' : '';
@@ -315,7 +324,7 @@
 
         if (hasShadesArray) {
           var swatchItemsHtml = '';
-          item.all_shades.forEach(function(sh, sIdx) {
+          item.all_shades.forEach(function (sh, sIdx) {
             var isActive = (sh.variation_id == item.variation_id || sh.shade_name === item.shade_name);
             var activeClass = isActive ? 'active' : '';
             var disabledClass = !sh.is_in_stock ? 'out-of-stock-swatch' : '';
@@ -382,6 +391,33 @@
         `;
       });
 
+      var pouch = self.getLuxuryPouch();
+      var pouchHtml = '';
+      if (pouch) {
+        var pouchChecked = (self.luxuryPouchSelected && pouch.is_in_stock !== false) ? 'checked' : '';
+        var pouchPrice = pouch.price_formatted || ((tvak_vars.currency_symbol || '') + (parseFloat(pouch.price || 0)).toFixed(2));
+        var pouchImg = pouch.image_url
+          ? `<img src="${self.escapeHtml(pouch.image_url)}" class="tvak-pouch-image" alt="${self.escapeHtml(pouch.name)}" />`
+          : '<div class="tvak-pouch-image tvak-pouch-image-placeholder"></div>';
+
+        pouchHtml = `
+          <div class="tvak-luxury-pouch-panel ${pouch.is_in_stock === false ? 'out-of-stock' : ''}">
+            <label class="tvak-luxury-pouch-option">
+              <input type="checkbox" class="tvak-luxury-pouch-toggle" ${pouchChecked} ${pouch.is_in_stock === false ? 'disabled' : ''} />
+              <span class="tvak-luxury-pouch-checkcopy">
+                <span class="tvak-luxury-pouch-title">This pouch will included as separate product in your cart</span>
+                <span class="tvak-luxury-pouch-note">${pouch.is_in_stock === false ? 'Currently out of stock' : ''}</span>
+              </span>
+            </label>This pouch will included as separate product in your cart
+            <div class="tvak-luxury-pouch-product">
+              ${pouchImg}
+              <span class="tvak-luxury-pouch-name">${self.escapeHtml(pouch.name)}</span>
+              <span class="tvak-luxury-pouch-price">${pouchPrice}</span>
+            </div>
+          </div>
+        `;
+      }
+
       var html = `
         <div class="tvak-step-card">
           <div style="text-align:center; margin-bottom:25px;">
@@ -395,6 +431,8 @@
           </div>
 
           <div class="tvak-cart-action-bar">
+            ${pouchHtml}
+
             <div class="tvak-summary-pricing-panel">
               <div class="tvak-price-breakdown">
                 <span class="tvak-total-label">Subtotal:</span>
@@ -419,20 +457,24 @@
       self.updateSummaryBar();
     },
 
-    updateSummaryBar: function() {
+    updateSummaryBar: function () {
       var self = this;
       if (!self.recommendationPayload || !self.recommendationPayload.items) {
         return;
       }
 
       var items = self.recommendationPayload.items;
-      var selectedItems = items.filter(function(i) { return i.selected && i.is_in_stock !== false; });
+      var selectedItems = items.filter(function (i) { return i.selected && i.is_in_stock !== false; });
       var count = selectedItems.length;
 
       var subtotal = 0;
-      selectedItems.forEach(function(item) {
+      selectedItems.forEach(function (item) {
         subtotal += parseFloat(item.price || 0);
       });
+
+      var pouch = self.getLuxuryPouch();
+      var includePouch = !!(pouch && self.luxuryPouchSelected && pouch.is_in_stock !== false);
+      var pouchPrice = includePouch ? parseFloat(pouch.price || 0) : 0;
 
       // ── Dynamic Tiered Bundle Discount ──────────────────────────────────────
       // Tiers are configured from WP Admin (TVAK Engine → Bundle Discount).
@@ -444,14 +486,14 @@
       if (thresholds) {
         // New structured format: { tier_1: {min_items, pct}, tier_2: …, tier_3: … }
         var tiers = [];
-        Object.keys(thresholds).forEach(function(key) {
+        Object.keys(thresholds).forEach(function (key) {
           var t = thresholds[key];
           if (t && typeof t.min_items !== 'undefined' && typeof t.pct !== 'undefined') {
             tiers.push({ min: parseInt(t.min_items, 10), pct: parseInt(t.pct, 10) });
           }
         });
         // Sort tiers descending by minimum item count so highest discount wins first
-        tiers.sort(function(a, b) { return b.min - a.min; });
+        tiers.sort(function (a, b) { return b.min - a.min; });
         for (var ti = 0; ti < tiers.length; ti++) {
           if (count >= tiers[ti].min) {
             discountPct = tiers[ti].pct;
@@ -467,7 +509,7 @@
       // ────────────────────────────────────────────────────────────────────────
 
       var discountAmount = (subtotal * discountPct) / 100;
-      var finalTotal = subtotal - discountAmount;
+      var finalTotal = subtotal - discountAmount + pouchPrice;
 
       var currencySymbol = (tvak_vars && tvak_vars.currency_symbol) ? tvak_vars.currency_symbol : '₹';
       var fmtSubtotal = currencySymbol + subtotal.toFixed(2);
@@ -486,6 +528,7 @@
       }
 
       self.$container.find('.tvak-final-total-val').text(fmtFinal);
+      self.$container.find('.tvak-luxury-pouch-toggle').prop('checked', includePouch);
 
       var $btn = self.$container.find('.btn-add-kit-cart');
       if (count === 0) {
@@ -495,11 +538,11 @@
       }
     },
 
-    bindEvents: function() {
+    bindEvents: function () {
       var self = this;
 
       // Dynamic Option Card Selection Handler
-      self.$container.on('click', '.tvak-option-card', function() {
+      self.$container.on('click', '.tvak-option-card', function () {
         var $card = $(this);
         var attr = $card.data('attr');
         var val = $card.data('val');
@@ -525,7 +568,7 @@
       });
 
       // Item Checkbox Toggle
-      self.$container.on('change', '.tvak-item-toggle-chk', function(e) {
+      self.$container.on('change', '.tvak-item-toggle-chk', function (e) {
         e.stopPropagation();
         var idx = $(this).data('idx');
         var isChecked = $(this).is(':checked');
@@ -544,8 +587,14 @@
         self.updateSummaryBar();
       });
 
+      self.$container.on('change', '.tvak-luxury-pouch-toggle', function (e) {
+        e.stopPropagation();
+        self.luxuryPouchSelected = $(this).is(':checked');
+        self.updateSummaryBar();
+      });
+
       // Shade Swatch Selection Click Handler (Refactored to JS Memory Lookup to prevent HTML Attribute explosions)
-      self.$container.on('click', '.tvak-shade-swatch', function(e) {
+      self.$container.on('click', '.tvak-shade-swatch', function (e) {
         e.stopPropagation();
         var $swatch = $(this);
 
@@ -595,35 +644,35 @@
       });
 
       // Step Navigation Buttons
-      self.$container.on('click', '.btn-next', function() {
+      self.$container.on('click', '.btn-next', function () {
         if (self.currentStep < self.totalSteps) {
           self.renderStep(self.currentStep + 1);
         }
       });
 
-      self.$container.on('click', '.btn-prev', function() {
+      self.$container.on('click', '.btn-prev', function () {
         if (self.currentStep > 1) {
           self.renderStep(self.currentStep - 1);
         }
       });
 
       // Compute Recommendation Trigger
-      self.$container.on('click', '.btn-compute', function() {
+      self.$container.on('click', '.btn-compute', function () {
         self.fetchRecommendation();
       });
 
       // Add Kit to Cart Action
-      self.$container.on('click', '.btn-add-kit-cart', function() {
+      self.$container.on('click', '.btn-add-kit-cart', function () {
         self.addKitToCart();
       });
     },
 
-    addKitToCart: function() {
+    addKitToCart: function () {
       var self = this;
       var $btn = self.$container.find('.btn-add-kit-cart');
       var $toast = $('#tvak-cart-toast');
 
-      var itemsToAdd = self.recommendationPayload.items.filter(function(item) {
+      var itemsToAdd = self.recommendationPayload.items.filter(function (item) {
         return item.selected && item.is_in_stock !== false;
       });
 
@@ -643,14 +692,15 @@
         data: JSON.stringify({
           kit_id: self.recommendationPayload.kit_id,
           items: itemsToAdd,
-          profile: self.profile
+          profile: self.profile,
+          include_luxury_pouch: !!(self.getLuxuryPouch() && self.luxuryPouchSelected)
         }),
-        beforeSend: function(xhr) {
+        beforeSend: function (xhr) {
           if (tvak_vars && tvak_vars.nonce) {
             xhr.setRequestHeader('X-WP-Nonce', tvak_vars.nonce);
           }
         },
-        success: function(res) {
+        success: function (res) {
           if (res && res.success) {
             $toast.html(`
               <div class="tvak-toast-notice" style="background:#1B3B2B; border:1px solid #4AB866; color:#E7F5EA; padding:15px; border-radius:8px; margin-top:15px;">
@@ -672,7 +722,7 @@
           }
           self.updateSummaryBar();
         },
-        error: function(err) {
+        error: function (err) {
           console.error('TVAK Add to Cart Error:', err);
           $toast.html('<div class="tvak-toast-notice" style="background:#4A1B1B; border:1px solid #FF6B6B; color:#FFD1D1; padding:12px; border-radius:6px;">Failed to process bag request. Please try again.</div>');
           self.updateSummaryBar();
@@ -681,7 +731,7 @@
     }
   };
 
-  $(document).ready(function() {
+  $(document).ready(function () {
     TvakApp.init();
   });
 

@@ -463,6 +463,85 @@
   border-bottom: 1px dashed rgba(212, 175, 55, 0.3);
 }
 
+.tvak-luxury-pouch-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(212, 175, 55, 0.26);
+  border-radius: var(--tvak-radius-md);
+  text-align: left;
+}
+
+.tvak-luxury-pouch-panel.out-of-stock {
+  opacity: 0.62;
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.tvak-luxury-pouch-option,
+.tvak-luxury-pouch-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tvak-luxury-pouch-option {
+  flex: 1;
+  cursor: pointer;
+}
+
+.tvak-luxury-pouch-toggle {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--tvak-gold-primary);
+}
+
+.tvak-luxury-pouch-checkcopy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tvak-luxury-pouch-title {
+  color: var(--tvak-text-main);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tvak-luxury-pouch-note,
+.tvak-luxury-pouch-name {
+  color: var(--tvak-text-muted);
+  font-size: 12px;
+}
+
+.tvak-luxury-pouch-product {
+  flex: 0 0 auto;
+}
+
+.tvak-pouch-image {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(212, 175, 55, 0.32);
+  background: #121214;
+}
+
+.tvak-pouch-image-placeholder {
+  display: block;
+}
+
+.tvak-luxury-pouch-price {
+  color: var(--tvak-gold-light);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .tvak-price-breakdown {
   font-size: 14px;
   color: var(--tvak-text-muted);
@@ -511,4 +590,16 @@
   font-size: 14px;
   line-height: 1.5;
   animation: tvakFadeIn 0.3s ease;
+}
+
+@media (max-width: 680px) {
+  .tvak-luxury-pouch-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tvak-luxury-pouch-product {
+    width: 100%;
+    justify-content: space-between;
+  }
 }

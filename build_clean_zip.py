@@ -14,7 +14,7 @@ allowed_extensions = ('.php', '.css', '.js', '.png', '.jpg', '.jpeg', '.svg', '.
 with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
     for root, dirs, files in os.walk(src_dir):
         # Exclude development/scratch directories
-        if any(x in root for x in ['scratch', '.git', '.gemini', '.claude', 'node_modules', 'docs']):
+        if any(x in root for x in ['scratch', '.git', '.gemini', '.claude', '.deploy-backups', 'node_modules', 'docs', 'tvak-custom-hamper-builder']):
             continue
             
         for file in files:

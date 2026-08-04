@@ -1727,6 +1727,18 @@ class Tvak_Admin {
         ]);
         $global_min_score_threshold = min(1.0, max(0.0, (float) get_option('tvak_global_min_score_threshold', 0.20)));
         $default_absent_match       = min(1.0, max(0.0, (float) get_option('tvak_default_absent_match', 0.20)));
+        $luxury_pouch_product_id    = (int) get_option('tvak_luxury_pouch_product_id', 0);
+        if (!$luxury_pouch_product_id && class_exists('Tvak_WooCommerce')) {
+            $luxury_pouch_product_id = Tvak_WooCommerce::get_luxury_pouch_product_id();
+        }
+        $pouch_products = get_posts([
+            'post_type'      => 'product',
+            'post_status'    => ['publish', 'private', 'draft'],
+            'posts_per_page' => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+        ]);
 
         ?>
         <div class="wrap">
@@ -1830,6 +1842,29 @@ class Tvak_Admin {
 
                                     <tr>
                                         <td colspan="2">
+                                            <h3 style="margin: 10px 0 5px; color: #D4AF37;"><?php esc_html_e('Luxury Pouch Add-On', 'tvak-beauty-kit'); ?></h3>
+                                            <p class="description"><?php esc_html_e('Select the WooCommerce pouch product that should be offered under recommendation results. Its name, stock, and price come directly from WooCommerce.', 'tvak-beauty-kit'); ?></p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><label for="tvak_luxury_pouch_product_id"><?php esc_html_e('Pouch Product', 'tvak-beauty-kit'); ?></label></th>
+                                        <td>
+                                            <select name="tvak_luxury_pouch_product_id" id="tvak_luxury_pouch_product_id" style="width: 100%; max-width: 420px;">
+                                                <option value="0"><?php esc_html_e('-- Disable pouch add-on --', 'tvak-beauty-kit'); ?></option>
+                                                <?php foreach ($pouch_products as $product_id) : ?>
+                                                    <option value="<?php echo esc_attr($product_id); ?>" <?php selected($luxury_pouch_product_id, $product_id); ?>>
+                                                        <?php echo esc_html(get_the_title($product_id)); ?> (#<?php echo esc_html($product_id); ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <p class="description"><?php esc_html_e('When enabled, the customer sees a default-checked pouch option below their selected recommendation products.', 'tvak-beauty-kit'); ?></p>
+                                        </td>
+                                    </tr>
+
+                                    <tr><td colspan="2"><hr style="border-color:#eee;" /></td></tr>
+
+                                    <tr>
+                                        <td colspan="2">
                                             <h3 style="margin: 10px 0 5px; color: #D4AF37;"><?php esc_html_e('Engine Scoring Defaults', 'tvak-beauty-kit'); ?></h3>
                                             <p class="description"><?php esc_html_e('Global defaults used by the recommendation engine when a product rule does not override them.', 'tvak-beauty-kit'); ?></p>
                                         </td>
@@ -1926,6 +1961,7 @@ class Tvak_Admin {
         $tier_3_pct = min(100, max(0, (int) ($_POST['tier_3_pct'] ?? 20)));
         $global_min_score_threshold = min(1.0, max(0.0, (float) ($_POST['tvak_global_min_score_threshold'] ?? 0.20)));
         $default_absent_match       = min(1.0, max(0.0, (float) ($_POST['tvak_default_absent_match'] ?? 0.20)));
+        $luxury_pouch_product_id    = max(0, (int) ($_POST['tvak_luxury_pouch_product_id'] ?? 0));
 
         update_option('tvak_bundle_discounts', [
             'tier_1_min' => $tier_1_min,
@@ -1937,6 +1973,7 @@ class Tvak_Admin {
         ]);
         update_option('tvak_global_min_score_threshold', $global_min_score_threshold);
         update_option('tvak_default_absent_match', $default_absent_match);
+        update_option('tvak_luxury_pouch_product_id', $luxury_pouch_product_id);
 
         // Flush recommendation cache so new tiers take effect immediately
         if (class_exists('Tvak_Cache')) {

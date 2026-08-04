@@ -111,6 +111,9 @@ class Tvak_Elementor_Widget extends \Elementor\Widget_Base {
             'ajax_url'    => esc_url_raw(admin_url('admin-ajax.php')),
             'nonce'       => wp_create_nonce('wp_rest'),
             'accent_color'=> esc_attr($settings['accent_color']),
+            'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol()) : '',
+            'currency_code'   => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'INR',
+            'luxury_pouch'    => class_exists('Tvak_WooCommerce') ? Tvak_WooCommerce::get_luxury_pouch_data() : ['enabled' => false],
         ]);
 
         ?>

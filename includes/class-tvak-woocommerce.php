@@ -144,6 +144,7 @@ class Tvak_WooCommerce {
         $kit_id  = sanitize_text_field($payload['kit_id'] ?? ('KIT-' . date('Ymd') . '-' . wp_generate_password(6, false, false)));
         $items   = isset($payload['items']) && is_array($payload['items']) ? $payload['items'] : [];
         $profile = isset($payload['profile']) && is_array($payload['profile']) ? $payload['profile'] : [];
+        $include_luxury_pouch = !empty($payload['include_luxury_pouch']);
 
         if (empty($items)) {
             return [
@@ -209,6 +210,13 @@ class Tvak_WooCommerce {
             }
         }
 
+        if ($include_luxury_pouch) {
+            $pouch_added = self::add_luxury_pouch_to_cart($kit_id, $profile);
+            if ($pouch_added) {
+                $added_count++;
+            }
+        }
+
         if ($added_count === 0) {
             return [
                 'success' => false,
@@ -227,6 +235,105 @@ class Tvak_WooCommerce {
             'cart_url'     => $cart_url,
             'checkout_url' => $checkout_url,
         ];
+    }
+
+    /**
+     * Build frontend-safe data for the configured luxury pouch product.
+     *
+     * Product selection is admin-configurable via tvak_luxury_pouch_product_id.
+     * A URL slug fallback keeps existing installs working after the product is created.
+     *
+     * @return array
+     */
+    public static function get_luxury_pouch_data(): array {
+        $product_id = self::get_luxury_pouch_product_id();
+        if (!$product_id || !function_exists('wc_get_product')) {
+            return [
+                'enabled' => false,
+            ];
+        }
+
+        $product = wc_get_product($product_id);
+        if (!$product || !$product->is_purchasable()) {
+            return [
+                'enabled' => false,
+            ];
+        }
+
+        $image_url = '';
+        if ($product->get_image_id()) {
+            $image_url = wp_get_attachment_image_url($product->get_image_id(), 'woocommerce_thumbnail') ?: '';
+        }
+
+        return [
+            'enabled'         => true,
+            'product_id'      => $product->get_id(),
+            'name'            => $product->get_name(),
+            'price'           => (float) wc_get_price_to_display($product),
+            'price_formatted' => wp_strip_all_tags(wc_price(wc_get_price_to_display($product))),
+            'image_url'       => $image_url,
+            'is_in_stock'     => $product->is_in_stock(),
+        ];
+    }
+
+    /**
+     * Resolve the configured luxury pouch product ID.
+     *
+     * @return int
+     */
+    public static function get_luxury_pouch_product_id(): int {
+        $configured_id = get_option('tvak_luxury_pouch_product_id', null);
+        if ($configured_id !== null) {
+            $configured_id = max(0, (int) $configured_id);
+            return $configured_id > 0 ? (int) apply_filters('tvak_luxury_pouch_product_id', $configured_id) : 0;
+        }
+
+        $fallback_slug = (string) apply_filters(
+            'tvak_luxury_pouch_product_slug',
+            get_option('tvak_luxury_pouch_product_slug', 'luxury-beauty-kit-pouch-by-tvak')
+        );
+        $fallback_slug = sanitize_title($fallback_slug);
+
+        if ($fallback_slug === '') {
+            return 0;
+        }
+
+        $post = get_page_by_path($fallback_slug, OBJECT, 'product');
+        return $post ? (int) apply_filters('tvak_luxury_pouch_product_id', $post->ID) : 0;
+    }
+
+    /**
+     * Add the configured luxury pouch to the WooCommerce cart.
+     *
+     * @param string $kit_id Kit ID.
+     * @param array  $profile Customer profile payload.
+     * @return bool
+     */
+    private static function add_luxury_pouch_to_cart(string $kit_id, array $profile): bool {
+        $product_id = self::get_luxury_pouch_product_id();
+        if (!$product_id || !function_exists('wc_get_product')) {
+            return false;
+        }
+
+        $product = wc_get_product($product_id);
+        if (!$product || !$product->is_purchasable() || !$product->is_in_stock()) {
+            return false;
+        }
+
+        $cart_item_data = [
+            '_tvak_kit_id'              => $kit_id,
+            '_tvak_is_personalized_kit' => true,
+            '_tvak_slot_name'           => __('Luxury Pouch', 'tvak-beauty-kit'),
+            '_tvak_is_luxury_pouch'     => true,
+            '_tvak_profile'             => wp_json_encode($profile),
+        ];
+
+        try {
+            return (bool) WC()->cart->add_to_cart($product_id, 1, 0, [], $cart_item_data);
+        } catch (\Exception $e) {
+            error_log('TVAK Luxury Pouch Cart Injection Exception: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
