@@ -1,36 +1,61 @@
 import os
 import zipfile
 
-src_dir = r"D:\Company Work\Company projects\Plugin php\Tvak"
-zip_path = os.path.join(src_dir, "tvak-beauty-kit.zip")
+base_dir = r"D:\Company Work\Company projects\Plugin php\Tvak"
+allowed_extensions = ('.php', '.css', '.js', '.png', '.jpg', '.jpeg', '.svg', '.json', '.txt', '.mo', '.po')
 
-print("== Building Cross-Platform WordPress Plugin ZIP ==")
+plugins = [
+    {
+        'slug': 'tvak-beauty-kit',
+        'dir': os.path.join(base_dir, 'tvak-beauty-kit'),
+        'zip': os.path.join(base_dir, 'tvak-beauty-kit.zip'),
+        'name': 'TVAK Personalized Beauty Recommendation Engine'
+    },
+    {
+        'slug': 'tvak-custom-hamper-builder',
+        'dir': os.path.join(base_dir, 'tvak-custom-hamper-builder'),
+        'zip': os.path.join(base_dir, 'tvak-custom-hamper-builder.zip'),
+        'name': 'TVAK Custom Hamper Builder'
+    }
+]
 
-if os.path.exists(zip_path):
-    os.remove(zip_path)
+print("==================================================")
+print("  BUILDING CROSS-PLATFORM WORDPRESS PLUGIN ZIPS   ")
+print("==================================================")
 
-allowed_extensions = ('.php', '.css', '.js', '.png', '.jpg', '.jpeg', '.svg', '.json', '.txt')
+for plugin in plugins:
+    plugin_dir = plugin['dir']
+    zip_path = plugin['zip']
+    slug = plugin['slug']
+    name = plugin['name']
 
-with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-    for root, dirs, files in os.walk(src_dir):
-        # Exclude development/scratch directories
-        if any(x in root for x in ['scratch', '.git', '.gemini', '.claude', '.deploy-backups', 'node_modules', 'docs', 'tvak-custom-hamper-builder']):
-            continue
-            
-        for file in files:
-            if not file.endswith(allowed_extensions):
+    print(f"\nPackaging: {name} ({slug})")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    if not os.path.exists(plugin_dir):
+        print(f" ERROR: Directory {plugin_dir} does not exist!")
+        continue
+
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(plugin_dir):
+            if any(x in root for x in ['scratch', '.git', '.gemini', '.claude', '.deploy-backups', 'node_modules']):
                 continue
-            if file == 'tvak-beauty-kit.zip':
-                continue
-                
-            full_path = os.path.join(root, file)
-            rel_path = os.path.relpath(full_path, src_dir)
-            
-            # Use forward slashes (/) for cross-platform ZIP compatibility
-            unix_rel_path = rel_path.replace('\\', '/')
-            arcname = 'tvak-beauty-kit/' + unix_rel_path
-            
-            zipf.write(full_path, arcname)
-            print(f" Added: {arcname}")
 
-print(f"\nSUCCESS: Built {zip_path} ({round(os.path.getsize(zip_path)/1024, 1)} KB)")
+            for file in files:
+                if not file.endswith(allowed_extensions):
+                    continue
+
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, plugin_dir)
+                unix_rel_path = rel_path.replace('\\', '/')
+                arcname = f"{slug}/{unix_rel_path}"
+
+                zipf.write(full_path, arcname)
+                print(f"  + Added: {arcname}")
+
+    size_kb = round(os.path.getsize(zip_path) / 1024, 1)
+    print(f"SUCCESS: Built {zip_path} ({size_kb} KB)")
+
+print("\nAll plugin zips built successfully!")

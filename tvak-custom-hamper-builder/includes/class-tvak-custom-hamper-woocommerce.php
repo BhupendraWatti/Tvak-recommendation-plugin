@@ -198,9 +198,6 @@ class Tvak_Custom_Hamper_WooCommerce {
             }
 
             $definition = $allowed_items[$product_id];
-            if (!empty($definition['is_optional']) && empty($hamper['allow_optional_items'])) {
-                return ['success' => false, 'message' => __('Optional items are not enabled for this hamper.', 'tvak-custom-hamper-builder')];
-            }
 
             $selected[$product_id] = [
                 'definition'   => $definition,

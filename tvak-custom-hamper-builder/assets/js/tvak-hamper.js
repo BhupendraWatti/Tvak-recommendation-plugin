@@ -9,6 +9,7 @@
   var TvakHamper = {
     hamper: null,
     state: {},
+    message: '',
 
     init: function() {
       this.$root = $('#tvak-hamper-builder');
@@ -70,10 +71,6 @@
         var selected = Boolean(item.is_required || item.is_preselected);
         var variation = self.getFirstAvailableVariation(item);
 
-        if (item.is_optional && !self.hamper.allow_optional_items) {
-          selected = false;
-        }
-
         self.state[idx] = {
           selected: selected,
           quantity: selected ? Math.max(1, parseInt(item.default_quantity || 1, 10)) : 0,
@@ -100,13 +97,19 @@
           state.quantity = 0;
           state.variationId = 0;
           state.attributes = {};
+          self.message = '';
         } else {
+          if (self.getSelectedIndexes().length >= parseInt(self.hamper.max_items, 10)) {
+            self.message = 'Your hamper is full. Remove a product before adding another.';
+            self.render();
+            return;
+          }
           state.selected = true;
           state.quantity = Math.max(1, parseInt(item.default_quantity || 1, 10));
           var variation = self.getFirstAvailableVariation(item);
           state.variationId = variation ? parseInt(variation.variation_id, 10) : 0;
           state.attributes = variation ? (variation.attributes || {}) : {};
-          self.enforceMax(idx);
+          self.message = '';
         }
         self.render();
       });
@@ -168,7 +171,15 @@
           state.variationId = parseInt(variation.variation_id, 10);
           state.attributes = variation.attributes || {};
         }
-        this.enforceMax(idx);
+        if (this.getSelectedIndexes().length > parseInt(this.hamper.max_items, 10)) {
+          state.selected = false;
+          state.quantity = 0;
+          state.variationId = 0;
+          state.attributes = {};
+          this.message = 'Your hamper is full. Remove a product before adding another.';
+        } else {
+          this.message = '';
+        }
       }
 
       this.render();
@@ -183,6 +194,7 @@
       this.state[changedIdx].quantity = 0;
       this.state[changedIdx].variationId = 0;
       this.state[changedIdx].attributes = {};
+      this.message = 'Your hamper is full. Remove a product before adding another.';
     },
 
     render: function() {
@@ -230,11 +242,12 @@
       var unavailable = item.is_in_stock ? '' : '<span class="tvak-hamper-stock">Out of stock</span>';
       var description = this.trimText(item.description || '', 54);
       var variationHtml = this.renderVariationControl(item, idx, selected);
+      var imageUrl = this.getItemImageUrl(item, idx);
 
       return '' +
         '<article class="tvak-hamper-item' + (selected ? ' is-selected' : '') + (item.is_in_stock ? '' : ' is-disabled') + '">' +
           '<div class="tvak-hamper-image-wrap">' +
-            '<img src="' + this.escapeAttr(item.image_url || '') + '" alt="' + this.escapeAttr(item.name) + '" />' +
+            '<img src="' + this.escapeAttr(imageUrl) + '" alt="' + this.escapeAttr(item.name) + '" />' +
             '<span class="tvak-hamper-badge">' + this.escapeHtml(badge) + '</span>' +
           '</div>' +
           '<div class="tvak-hamper-item-body">' +
@@ -311,7 +324,7 @@
 
       $('.tvak-hamper-count').text(selected.length + ' / ' + this.hamper.max_items + ' selected');
       $('.tvak-hamper-selected-label').text(selected.length + ' Products Selected');
-      $('.tvak-hamper-message').text(message || this.getRemainingMessage(selected.length));
+      $('.tvak-hamper-message').text(message || this.message || this.getRemainingMessage(selected.length));
       $('.tvak-hamper-total strong').text(this.formatPrice(this.getTotal()));
       $('.tvak-hamper-submit').prop('disabled', !valid);
     },
@@ -354,6 +367,19 @@
         }
       }
       return item.price;
+    },
+
+    getItemImageUrl: function(item, idx) {
+      var state = this.state[idx];
+      if (state && state.variationId && item.variations) {
+        var match = item.variations.filter(function(variation) {
+          return parseInt(variation.variation_id, 10) === parseInt(state.variationId, 10);
+        })[0];
+        if (match && match.image_url) {
+          return match.image_url;
+        }
+      }
+      return item.image_url || '';
     },
 
     getSelectedVariationLabel: function(item, idx) {

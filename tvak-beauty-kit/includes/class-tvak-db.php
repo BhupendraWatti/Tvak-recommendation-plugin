@@ -187,42 +187,23 @@ class Tvak_DB {
         dbDelta($sql_shades);
         $wpdb->query("ALTER TABLE {$table_shades} MODIFY shade_hex VARCHAR(32) NOT NULL DEFAULT ''");
 
-        // 10. Custom Hamper Shell Definitions
-        $table_hampers = $wpdb->prefix . 'tvak_hampers';
-        $sql_hampers = "CREATE TABLE {$table_hampers} (
-            hamper_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            hamper_product_id BIGINT UNSIGNED NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            min_items INT UNSIGNED NOT NULL DEFAULT 2,
-            max_items INT UNSIGNED NOT NULL DEFAULT 5,
-            allow_optional_items TINYINT(1) NOT NULL DEFAULT 1,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
+        // 10. Mobile OTP Sessions Table
+        $table_otp_sessions = $wpdb->prefix . 'tvak_otp_sessions';
+        $sql_otp_sessions = "CREATE TABLE {$table_otp_sessions} (
+            session_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            mobile_number VARCHAR(32) NOT NULL,
+            location VARCHAR(128) NULL,
+            otp_hash VARCHAR(255) NOT NULL,
+            attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            is_verified TINYINT(1) NOT NULL DEFAULT 0,
+            expires_at DATETIME NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY  (hamper_id),
-            UNIQUE KEY hamper_product_id (hamper_product_id),
-            KEY is_active (is_active)
+            PRIMARY KEY  (session_id),
+            KEY mobile_number (mobile_number),
+            KEY is_verified (is_verified),
+            KEY expires_at (expires_at)
         ) {$charset_collate};";
-        dbDelta($sql_hampers);
-
-        // 11. Custom Hamper Assigned Products
-        $table_hamper_items = $wpdb->prefix . 'tvak_hamper_items';
-        $sql_hamper_items = "CREATE TABLE {$table_hamper_items} (
-            hamper_item_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            hamper_id BIGINT UNSIGNED NOT NULL,
-            product_id BIGINT UNSIGNED NOT NULL,
-            default_quantity INT UNSIGNED NOT NULL DEFAULT 1,
-            is_required TINYINT(1) NOT NULL DEFAULT 0,
-            is_preselected TINYINT(1) NOT NULL DEFAULT 1,
-            is_optional TINYINT(1) NOT NULL DEFAULT 0,
-            sort_order INT UNSIGNED NOT NULL DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY  (hamper_item_id),
-            UNIQUE KEY hamper_product (hamper_id, product_id),
-            KEY hamper_id (hamper_id),
-            KEY product_id (product_id)
-        ) {$charset_collate};";
-        dbDelta($sql_hamper_items);
+        dbDelta($sql_otp_sessions);
 
         update_option('tvak_db_version', self::DB_VERSION);
     }
@@ -238,6 +219,25 @@ class Tvak_DB {
         self::sync_wc_kit_slots();
         self::seed_core_quiz_attributes();
         self::sync_wc_master_data();
+
+        // Seed default SMS and OTP options if not set
+        if (get_option('tvak_sms_settings') === false) {
+            update_option('tvak_sms_settings', [
+                'provider'            => 'mock',
+                'api_key'             => '',
+                'sender_id'           => 'TVAKBT',
+                'template_id'         => '',
+                'custom_endpoint'     => '',
+                'custom_method'       => 'POST',
+                'custom_headers'      => '',
+                'custom_body'         => '{"mobile":"{{mobile}}","message":"{{message}}"}',
+                'otp_length'          => 6,
+                'otp_expiry_minutes'  => 5,
+                'wc_override_enabled' => 1,
+                'otp_template'        => 'Your TVAK verification OTP is {{otp}}. Valid for {{expiry}} minutes. Do not share it with anyone.',
+                'session_action_sms'  => 'Notice: {{action}} was performed on your TVAK account for mobile {{mobile}}.',
+            ]);
+        }
 
         // Run automated seeding & linking for WooCommerce Variations and Product Shades
         self::seed_product_shades();

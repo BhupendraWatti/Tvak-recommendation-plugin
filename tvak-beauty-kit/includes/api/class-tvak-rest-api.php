@@ -101,6 +101,7 @@ class Tvak_REST_API {
             'permission_callback' => '__return_true',
             'args'                => [],
         ]);
+
     }
 
 
@@ -267,6 +268,7 @@ class Tvak_REST_API {
             'timestamp'          => current_time('mysql'),
         ], $needs_migration ? 503 : 200);
     }
+
 
 
     /**

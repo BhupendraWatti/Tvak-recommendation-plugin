@@ -195,10 +195,6 @@ class Tvak_Custom_Hamper {
 
         $items = [];
         foreach (self::get_items((int) $hamper['hamper_id']) as $item) {
-            if (!empty($item['is_optional']) && empty($hamper['allow_optional_items'])) {
-                continue;
-            }
-
             $product = function_exists('wc_get_product') ? wc_get_product((int) $item['product_id']) : null;
             if (!$product || !$product->is_purchasable()) {
                 continue;
@@ -359,10 +355,26 @@ class Tvak_Custom_Hamper {
                 }
             }
 
+            $label = $label_parts ? implode(' / ', $label_parts) : $variation_obj->get_name();
+            $hex = '';
+            if (class_exists('Tvak_Shade_Sync')) {
+                $hex = Tvak_Shade_Sync::get_wc_variation_swatch_color($variation_id, (int) $product->get_id(), $label);
+            }
+
+            $variation_image_url = '';
+            if ($variation_obj->get_image_id()) {
+                $variation_image_url = wp_get_attachment_image_url($variation_obj->get_image_id(), 'woocommerce_thumbnail') ?: '';
+            }
+            if ($variation_image_url === '' && class_exists('Tvak_Shade_Sync')) {
+                $variation_image_url = Tvak_Shade_Sync::get_wc_variation_swatch_image_url($variation_id, (int) $product->get_id(), $label);
+            }
+
             $options[] = [
                 'variation_id' => $variation_id,
                 'attributes'   => $variation['attributes'] ?? [],
-                'label'        => $label_parts ? implode(' / ', $label_parts) : $variation_obj->get_name(),
+                'label'        => $label,
+                'hex'          => $hex,
+                'image_url'    => $variation_image_url,
                 'price'        => (float) wc_get_price_to_display($variation_obj),
                 'price_html'   => $variation_obj->get_price_html(),
                 'is_in_stock'  => $variation_obj->is_in_stock(),
@@ -392,11 +404,28 @@ class Tvak_Custom_Hamper {
             }
 
             $price_source = $variation_obj ?: $product;
+            $hex = (string) ($shade['shade_hex'] ?? '');
+            if (class_exists('Tvak_Shade_Sync')) {
+                $live_hex = Tvak_Shade_Sync::get_wc_variation_swatch_color($variation_id, (int) $product->get_id(), (string) $shade['shade_name']);
+                if ($live_hex !== '') {
+                    $hex = $live_hex;
+                }
+            }
+
+            $variation_image_url = '';
+            if ($variation_obj && $variation_obj->get_image_id()) {
+                $variation_image_url = wp_get_attachment_image_url($variation_obj->get_image_id(), 'woocommerce_thumbnail') ?: '';
+            }
+            if ($variation_image_url === '' && class_exists('Tvak_Shade_Sync')) {
+                $variation_image_url = Tvak_Shade_Sync::get_wc_variation_swatch_image_url($variation_id, (int) $product->get_id(), (string) $shade['shade_name']);
+            }
+
             $option = [
                 'variation_id' => $variation_id,
                 'attributes'   => $variation_obj ? $variation_obj->get_variation_attributes() : [],
                 'label'        => $shade['shade_name'],
-                'hex'          => $shade['shade_hex'],
+                'hex'          => $hex,
+                'image_url'    => $variation_image_url,
                 'price'        => (float) wc_get_price_to_display($price_source),
                 'price_html'   => $price_source->get_price_html(),
                 'is_in_stock'  => !empty($shade['is_in_stock']) && (!$variation_obj || $variation_obj->is_in_stock()),

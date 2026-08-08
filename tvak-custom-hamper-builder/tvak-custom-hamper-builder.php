@@ -41,6 +41,10 @@ require_once TCHB_PLUGIN_DIR . 'includes/class-tvak-custom-hamper-db.php';
 require_once TCHB_PLUGIN_DIR . 'includes/models/class-tvak-custom-hamper.php';
 require_once TCHB_PLUGIN_DIR . 'includes/class-tvak-custom-hamper-woocommerce.php';
 
+if (is_admin()) {
+    require_once TCHB_PLUGIN_DIR . 'includes/admin/class-tvak-custom-hamper-admin.php';
+}
+
 register_activation_hook(__FILE__, ['Tvak_Custom_Hamper_DB', 'create_tables']);
 
 add_action('plugins_loaded', static function() {
@@ -53,4 +57,8 @@ add_action('plugins_loaded', static function() {
     }
 
     Tvak_Custom_Hamper_WooCommerce::init();
+
+    if (is_admin()) {
+        Tvak_Custom_Hamper_Admin::init();
+    }
 }, 20);

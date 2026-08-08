@@ -427,6 +427,13 @@ class Tvak_WooCommerce {
             $order->update_meta_data('_tvak_kit_id', $kit_id);
             $order->save();
         }
+
+        $customer_id = $order->get_customer_id();
+        $billing_phone = $order->get_billing_phone();
+        $target = $customer_id ?: $billing_phone;
+
+        if (!empty($target)) {
+        }
     }
 
     /**

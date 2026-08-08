@@ -88,6 +88,13 @@ class Tvak_Product_Shade {
             return 0;
         }
 
+        if ($variation_id && class_exists('Tvak_Shade_Sync')) {
+            $live_hex = Tvak_Shade_Sync::get_wc_variation_swatch_color($variation_id, $product_id, $shade_name);
+            if ($live_hex !== '') {
+                $shade_hex = $live_hex;
+            }
+        }
+
         // Direction B Sync: If variation_id is missing or new, auto-create/update WooCommerce product_variation post
         if (class_exists('Tvak_Shade_Sync')) {
             $synced_var_id = Tvak_Shade_Sync::sync_tvak_shade_to_wc([

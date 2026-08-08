@@ -44,6 +44,9 @@ class Tvak_Shade_Sync {
         add_action('edited_term', [__CLASS__, 'on_term_modified'], 10, 3);
         add_action('woocommerce_attribute_added', [__CLASS__, 'on_attribute_modified'], 10, 2);
         add_action('woocommerce_attribute_updated', [__CLASS__, 'on_attribute_modified'], 10, 3);
+        add_action('woocommerce_process_product_meta', [__CLASS__, 'on_rtwpvs_product_meta_saved'], 20, 1);
+        add_action('rtwpvs_save_product_attributes', [__CLASS__, 'on_rtwpvs_product_attributes_saved'], 10, 2);
+        add_action('rtwpvs_reset_product_attributes', [__CLASS__, 'on_rtwpvs_product_attributes_reset'], 10, 1);
     }
 
     /**
@@ -132,17 +135,26 @@ class Tvak_Shade_Sync {
             return '';
         }
 
+        $color = get_term_meta($term_id, 'product_attribute_color', true);
+        $color = is_string($color) ? self::normalize_hex($color) : '';
+        if ($color !== '') {
+            return $color;
+        }
+
         $all_term_meta = get_term_meta($term_id);
-        if (is_array($all_term_meta)) {
-            foreach ($all_term_meta as $key => $values) {
-                if (is_array($values)) {
-                    foreach ($values as $val) {
-                        if (is_string($val) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($val))) {
-                            return trim($val);
-                        }
-                    }
-                } elseif (is_string($values) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($values))) {
-                    return trim($values);
+        if (!is_array($all_term_meta)) {
+            return '';
+        }
+
+        foreach ($all_term_meta as $key => $values) {
+            if ($key === 'product_attribute_color') {
+                continue;
+            }
+
+            foreach ((array) $values as $value) {
+                $hex = self::first_hex_in_value($value);
+                if ($hex !== '') {
+                    return $hex;
                 }
             }
         }
@@ -162,12 +174,144 @@ class Tvak_Shade_Sync {
      * @return string HEX color code with leading # or empty string.
      */
     public static function get_parent_product_swatch_color(int $product_id, string $shade_name = '', array $attribute_values = []): string {
+        $color = self::get_parent_product_swatch_field($product_id, 'color', $shade_name, $attribute_values);
+
+        return self::normalize_hex($color);
+    }
+
+    public static function get_parent_product_swatch_image_url(int $product_id, string $shade_name = '', array $attribute_values = []): string {
+        $image_id = absint(self::get_parent_product_swatch_field($product_id, 'image', $shade_name, $attribute_values));
+
+        return $image_id ? (string) wp_get_attachment_image_url($image_id, 'medium') : '';
+    }
+
+    public static function get_term_swatch_image_url($term_id, $taxonomy = ''): string {
+        if (!$term_id) {
+            return '';
+        }
+
+        $image_id = absint(get_term_meta($term_id, 'product_attribute_image', true));
+
+        return $image_id ? (string) wp_get_attachment_image_url($image_id, 'medium') : '';
+    }
+
+    public static function get_wc_variation_swatch_color(int $variation_id, int $product_id = 0, string $shade_name = ''): string {
+        $context = self::get_variation_swatch_context($variation_id, $product_id, $shade_name);
+        if (empty($context)) {
+            return '';
+        }
+
+        $shade_hex = self::get_parent_product_swatch_color($context['product_id'], $context['shade_name'], $context['attribute_values']);
+        if ($shade_hex !== '') {
+            return $shade_hex;
+        }
+
+        foreach ($context['attributes'] as $tax_key => $term_val) {
+            $term_obj = self::get_attribute_term($tax_key, $term_val, $context['shade_name']);
+            if ($term_obj && !is_wp_error($term_obj)) {
+                $term_hex = self::get_term_swatch_color($term_obj->term_id);
+                if ($term_hex !== '') {
+                    return $term_hex;
+                }
+            }
+        }
+
+        $all_post_meta = get_post_meta($variation_id);
+        if (is_array($all_post_meta)) {
+            foreach ($all_post_meta as $mk => $mval) {
+                if (in_array($mk, ['_shade_hex', '_tvak_shade_hex'], true)) {
+                    continue;
+                }
+                if (strpos($mk, 'color') !== false || strpos($mk, 'hex') !== false || strpos($mk, 'swatch') !== false) {
+                    $v_str = is_array($mval) ? reset($mval) : $mval;
+                    $v_hex = is_string($v_str) ? self::normalize_hex($v_str) : '';
+                    if ($v_hex !== '') {
+                        return $v_hex;
+                    }
+                }
+            }
+        }
+
+        return '';
+    }
+
+    public static function get_wc_variation_swatch_image_url(int $variation_id, int $product_id = 0, string $shade_name = ''): string {
+        $context = self::get_variation_swatch_context($variation_id, $product_id, $shade_name);
+        if (empty($context)) {
+            return '';
+        }
+
+        $image_url = self::get_parent_product_swatch_image_url($context['product_id'], $context['shade_name'], $context['attribute_values']);
+        if ($image_url !== '') {
+            return $image_url;
+        }
+
+        foreach ($context['attributes'] as $tax_key => $term_val) {
+            $term_obj = self::get_attribute_term($tax_key, $term_val, $context['shade_name']);
+            if ($term_obj && !is_wp_error($term_obj)) {
+                $term_image = self::get_term_swatch_image_url($term_obj->term_id);
+                if ($term_image !== '') {
+                    return $term_image;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private static function get_parent_product_swatch_field(int $product_id, string $field, string $shade_name = '', array $attribute_values = []): string {
         if (!$product_id) {
             return '';
         }
 
-        $needles = [];
-        foreach (array_merge([$shade_name], $attribute_values) as $candidate) {
+        $candidate_keys = self::get_swatch_candidate_keys(array_merge($attribute_values, [$shade_name]));
+
+        if (empty($candidate_keys)) {
+            return '';
+        }
+
+        $rtwpvs = get_post_meta($product_id, '_rtwpvs', true);
+        if (!empty($rtwpvs) && is_array($rtwpvs)) {
+            foreach ($rtwpvs as $attribute_data) {
+                if (empty($attribute_data['data']) || !is_array($attribute_data['data'])) {
+                    continue;
+                }
+
+                foreach ($candidate_keys as $key) {
+                    if (isset($attribute_data['data'][$key][$field]) && $attribute_data['data'][$key][$field] !== '') {
+                        return (string) $attribute_data['data'][$key][$field];
+                    }
+                }
+
+                $normalized_candidates = array_map([__CLASS__, 'normalize_swatch_token'], $candidate_keys);
+                foreach ($attribute_data['data'] as $option_key => $option_data) {
+                    if (!is_array($option_data) || empty($option_data[$field])) {
+                        continue;
+                    }
+
+                    if (in_array(self::normalize_swatch_token((string) $option_key), $normalized_candidates, true)) {
+                        return (string) $option_data[$field];
+                    }
+                }
+            }
+        }
+
+        $needles = array_values(array_unique(array_map([__CLASS__, 'normalize_swatch_token'], $candidate_keys)));
+        foreach (get_post_meta($product_id) as $meta_key => $values) {
+            foreach ((array) $values as $value) {
+                $matched_value = self::find_matching_swatch_field_in_value($value, $field, $needles, false, (string) $meta_key);
+                if ($matched_value !== '') {
+                    return $matched_value;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private static function get_swatch_candidate_keys(array $values): array {
+        $candidate_keys = [];
+        foreach ($values as $candidate) {
             if (!is_scalar($candidate)) {
                 continue;
             }
@@ -175,30 +319,67 @@ class Tvak_Shade_Sync {
             if ($candidate === '') {
                 continue;
             }
-            $needles[] = self::normalize_swatch_token($candidate);
-            $needles[] = self::normalize_swatch_token(sanitize_title($candidate));
-        }
-        $needles = array_values(array_unique(array_filter($needles)));
-
-        if (empty($needles)) {
-            return '';
+            $decoded = rawurldecode($candidate);
+            $candidate_keys[] = $candidate;
+            $candidate_keys[] = $decoded;
+            $candidate_keys[] = sanitize_title($candidate);
+            $candidate_keys[] = sanitize_title($decoded);
         }
 
-        $all_post_meta = get_post_meta($product_id);
-        if (!is_array($all_post_meta)) {
-            return '';
+        return array_values(array_unique(array_filter($candidate_keys)));
+    }
+
+    private static function get_variation_swatch_context(int $variation_id, int $product_id = 0, string $shade_name = ''): array {
+        if (!$variation_id || !function_exists('wc_get_product')) {
+            return [];
         }
 
-        foreach ($all_post_meta as $meta_key => $values) {
-            foreach ((array) $values as $value) {
-                $hex = self::find_matching_hex_in_value($value, $needles, false, (string) $meta_key);
-                if (!empty($hex)) {
-                    return $hex;
-                }
-            }
+        $wc_var = wc_get_product($variation_id);
+        if (!$wc_var || !$wc_var->is_type('variation')) {
+            return [];
         }
 
-        return '';
+        $attributes = $wc_var->get_variation_attributes();
+        $attribute_values = array_filter(array_values($attributes));
+
+        if (!$product_id) {
+            $product_id = (int) $wc_var->get_parent_id();
+        }
+
+        if ($shade_name === '') {
+            $shade_name = implode(' / ', $attribute_values);
+        }
+
+        return [
+            'product_id'        => $product_id,
+            'shade_name'        => $shade_name,
+            'attributes'        => $attributes,
+            'attribute_values'  => $attribute_values,
+        ];
+    }
+
+    private static function get_attribute_term(string $tax_key, string $term_val, string $shade_name = '') {
+        if ($term_val === '') {
+            return false;
+        }
+
+        $tax_name = str_replace('attribute_', '', $tax_key);
+        if (!taxonomy_exists($tax_name)) {
+            return false;
+        }
+
+        $term_obj = get_term_by('slug', $term_val, $tax_name);
+        if (!$term_obj) {
+            $term_obj = get_term_by('slug', sanitize_title($term_val), $tax_name);
+        }
+        if (!$term_obj) {
+            $term_obj = get_term_by('name', $term_val, $tax_name);
+        }
+        if (!$term_obj && $shade_name !== '') {
+            $term_obj = get_term_by('name', $shade_name, $tax_name);
+        }
+
+        return $term_obj;
     }
 
     private static function normalize_swatch_token(string $value): string {
@@ -209,7 +390,7 @@ class Tvak_Shade_Sync {
 
     private static function normalize_hex(string $value): string {
         $value = trim($value);
-        if (preg_match('/^#[0-9A-Fa-f]{3,6}$/', $value)) {
+        if (preg_match('/^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $value)) {
             return $value;
         }
         return '';
@@ -316,6 +497,48 @@ class Tvak_Shade_Sync {
         return $context_matched ? self::first_hex_in_value($value) : '';
     }
 
+    private static function find_matching_swatch_field_in_value($value, string $field, array $needles, bool $context_matched = false, string $key = ''): string {
+        if ($field === 'color') {
+            return self::find_matching_hex_in_value($value, $needles, $context_matched, $key);
+        }
+
+        if ($key !== '' && in_array(self::normalize_swatch_token($key), $needles, true)) {
+            $context_matched = true;
+        }
+
+        if (is_string($value)) {
+            $unserialized = function_exists('maybe_unserialize') ? maybe_unserialize($value) : @unserialize($value);
+            if ($unserialized !== $value && (is_array($unserialized) || is_object($unserialized))) {
+                return self::find_matching_swatch_field_in_value($unserialized, $field, $needles, $context_matched, $key);
+            }
+
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return self::find_matching_swatch_field_in_value($decoded, $field, $needles, $context_matched, $key);
+            }
+
+            return '';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            foreach ((array) $value as $child_key => $child_value) {
+                $child_key_token = self::normalize_swatch_token((string) $child_key);
+                $child_context = $context_matched || in_array($child_key_token, $needles, true);
+
+                if ($child_context && is_array($child_value) && isset($child_value[$field]) && $child_value[$field] !== '') {
+                    return (string) $child_value[$field];
+                }
+
+                $matched = self::find_matching_swatch_field_in_value($child_value, $field, $needles, $child_context, (string) $child_key);
+                if ($matched !== '') {
+                    return $matched;
+                }
+            }
+        }
+
+        return '';
+    }
+
     /**
      * Handle WC Variation Save action (Direction A: WC -> TVAK).
      *
@@ -375,64 +598,12 @@ class Tvak_Shade_Sync {
                 $sort_order = max(1, (int) $i + 1);
             }
 
-            // 1. Dynamic Postmeta HEX Extraction: inspect all postmeta registered on variation post
-            $shade_hex = '';
-            $all_post_meta = get_post_meta($variation_id);
-            if (is_array($all_post_meta)) {
-                foreach ($all_post_meta as $mk => $mval) {
-                    if (strpos($mk, 'color') !== false || strpos($mk, 'hex') !== false || strpos($mk, 'swatch') !== false) {
-                        $v_str = is_array($mval) ? reset($mval) : $mval;
-                        if (is_string($v_str) && preg_match('/^#[0-9A-Fa-f]{3,6}$/', trim($v_str))) {
-                            $shade_hex = trim($v_str);
-                            break;
-                        }
-                    }
-                }
-            }
+            // Resolve current Variation Swatches color from _rtwpvs first, then global term color.
+            $shade_hex = self::get_wc_variation_swatch_color((int) $variation_id, (int) $product_id, $shade_name);
 
-            // 2. Dynamic Termmeta HEX Extraction: inspect all attribute terms
-            if (empty($shade_hex) && function_exists('wc_get_product')) {
-                $wc_var = wc_get_product($variation_id);
-                if ($wc_var && $wc_var->is_type('variation')) {
-                    $v_attrs = $wc_var->get_variation_attributes();
-                    foreach ($v_attrs as $tax_key => $term_val) {
-                        if (!empty($term_val)) {
-                            $tax_name = str_replace('attribute_', '', $tax_key);
-                            
-                            $term_obj = get_term_by('slug', $term_val, $tax_name);
-                            if (!$term_obj) {
-                                $term_obj = get_term_by('slug', sanitize_title($term_val), $tax_name);
-                            }
-                            if (!$term_obj) {
-                                $term_obj = get_term_by('name', $term_val, $tax_name);
-                            }
-                            if (!$term_obj && !empty($shade_name)) {
-                                $term_obj = get_term_by('name', $shade_name, $tax_name);
-                            }
-
-                            if ($term_obj && !is_wp_error($term_obj)) {
-                                $term_hex = self::get_term_swatch_color($term_obj->term_id, $tax_name);
-                                if (!empty($term_hex)) {
-                                    $shade_hex = $term_hex;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Parent Product Swatch Tab Extraction: local attributes often store
-            // serialized swatch maps on the parent product rather than termmeta.
-            if (empty($shade_hex)) {
-                $attribute_values = [];
-                if (function_exists('wc_get_product')) {
-                    $wc_var = wc_get_product($variation_id);
-                    if ($wc_var && $wc_var->is_type('variation')) {
-                        $attribute_values = array_filter(array_values($wc_var->get_variation_attributes()));
-                    }
-                }
-                $shade_hex = self::get_parent_product_swatch_color($product_id, $shade_name, $attribute_values);
+            if (empty($image_url)) {
+                $swatch_image_url = self::get_wc_variation_swatch_image_url((int) $variation_id, (int) $product_id, $shade_name);
+                $image_url = $swatch_image_url !== '' ? $swatch_image_url : null;
             }
 
             if (empty($shade_hex) && class_exists('Tvak_Variant_Resolver')) {
@@ -693,25 +864,8 @@ class Tvak_Shade_Sync {
                     continue;
                 }
 
-                $existing = $wpdb->get_row($wpdb->prepare("
-                    SELECT shade_id, shade_hex, sort_order FROM {$shades_table}
-                    WHERE product_id = %d AND variation_id = %d
-                ", $product_id, $var_id), ARRAY_A);
-
-                $needs_refresh = !$existing;
-                if ($existing) {
-                    $existing_hex = trim((string) ($existing['shade_hex'] ?? ''));
-                    $needs_refresh = (
-                        empty($existing_hex) ||
-                        strcasecmp($existing_hex, self::get_default_hex()) === 0 ||
-                        (int) ($existing['sort_order'] ?? 0) === 0
-                    );
-                }
-
-                if ($needs_refresh) {
-                    self::sync_wc_variation_to_tvak($var_id, $idx);
-                    $synced_count++;
-                }
+                self::sync_wc_variation_to_tvak($var_id, $idx);
+                $synced_count++;
             }
         }
 
@@ -747,8 +901,11 @@ class Tvak_Shade_Sync {
                 }
             }
 
-            // Sync child variations / shades if product has variations
+            // Sync child variations / shades if product has variations. Release the
+            // lifecycle guard first so each child can run its own guarded sync.
+            self::$is_syncing = false;
             self::auto_sync_product_variations($product_id);
+            self::$is_syncing = true;
 
             if (class_exists('Tvak_Cache')) {
                 Tvak_Cache::invalidate_rules_cache();
@@ -861,5 +1018,17 @@ class Tvak_Shade_Sync {
         if (class_exists('Tvak_Cache')) {
             Tvak_Cache::invalidate_rules_cache();
         }
+    }
+
+    public static function on_rtwpvs_product_attributes_saved($product_id, $data = []) {
+        self::auto_sync_product_variations((int) $product_id);
+    }
+
+    public static function on_rtwpvs_product_meta_saved($product_id) {
+        self::auto_sync_product_variations((int) $product_id);
+    }
+
+    public static function on_rtwpvs_product_attributes_reset($product_id) {
+        self::auto_sync_product_variations((int) $product_id);
     }
 }

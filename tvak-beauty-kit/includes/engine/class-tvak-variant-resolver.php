@@ -23,7 +23,15 @@ class Tvak_Variant_Resolver {
     public static function get_shade_hex(string $shade_name, int $product_id = 0, int $variation_id = 0): string {
         $shade_name_trimmed = trim($shade_name);
 
-        // 1. Check custom database table wp_tvak_product_shades for saved shade_hex
+        // 1. Current WooCommerce Variation Swatches data is the source of truth.
+        if ($variation_id && class_exists('Tvak_Shade_Sync') && function_exists('wc_get_product')) {
+            $swatch_hex = Tvak_Shade_Sync::get_wc_variation_swatch_color($variation_id, $product_id, $shade_name);
+            if (!empty($swatch_hex)) {
+                return $swatch_hex;
+            }
+        }
+
+        // 2. Check custom database table wp_tvak_product_shades for saved shade_hex
         if ($product_id && class_exists('Tvak_Product_Shade')) {
             global $wpdb;
             $table = Tvak_Product_Shade::get_table_name();
@@ -39,51 +47,13 @@ class Tvak_Variant_Resolver {
             }
         }
 
-        // 2. Check variation meta in WooCommerce (_shade_hex, _swatch_color, _wcvs_swatch_color)
+        // 3. Check existing non-TVAK variation swatch metadata.
         if ($variation_id) {
-            $v_hex = get_post_meta($variation_id, '_shade_hex', true)
-                ?: get_post_meta($variation_id, '_swatch_color', true)
+            $v_hex = get_post_meta($variation_id, '_swatch_color', true)
                 ?: get_post_meta($variation_id, '_wcvs_swatch_color', true);
 
             if (!empty($v_hex)) {
                 return $v_hex;
-            }
-
-            // Check termmeta for variation taxonomy terms (e.g. pa_color)
-            if (class_exists('Tvak_Shade_Sync') && function_exists('wc_get_product')) {
-                $wc_var = wc_get_product($variation_id);
-                if ($wc_var && $wc_var->is_type('variation')) {
-                    $v_attrs = $wc_var->get_variation_attributes();
-                    foreach ($v_attrs as $tax_key => $term_val) {
-                        if (!empty($term_val)) {
-                            $tax_name = str_replace('attribute_', '', $tax_key);
-
-                            $term_obj = get_term_by('slug', $term_val, $tax_name);
-                            if (!$term_obj) {
-                                $term_obj = get_term_by('slug', sanitize_title($term_val), $tax_name);
-                            }
-                            if (!$term_obj) {
-                                $term_obj = get_term_by('name', $term_val, $tax_name);
-                            }
-                            if (!$term_obj && !empty($shade_name)) {
-                                $term_obj = get_term_by('name', $shade_name, $tax_name);
-                            }
-
-                            if ($term_obj && !is_wp_error($term_obj)) {
-                                $term_hex = Tvak_Shade_Sync::get_term_swatch_color($term_obj->term_id, $tax_name);
-                                if (!empty($term_hex)) {
-                                    return $term_hex;
-                                }
-                            }
-                        }
-                    }
-
-                    $parent_id  = $product_id ?: (int) $wc_var->get_parent_id();
-                    $parent_hex = Tvak_Shade_Sync::get_parent_product_swatch_color($parent_id, $shade_name, array_filter(array_values($v_attrs)));
-                    if (!empty($parent_hex)) {
-                        return $parent_hex;
-                    }
-                }
             }
         }
 
@@ -245,14 +215,34 @@ class Tvak_Variant_Resolver {
                     $s_var_id = !empty($db_s['variation_id']) ? (int) $db_s['variation_id'] : ($product_id * 100 + $idx + 1);
                     $s_price  = !empty($db_s['price']) ? (float) $db_s['price'] : $price;
                     $s_price_fmt = function_exists('wc_price') ? wc_price($s_price) : ('$' . number_format($s_price, 2));
+                    $s_hex = self::get_shade_hex($db_s['shade_name'], $product_id, $s_var_id);
+                    if ($s_hex === '' && !empty($db_s['shade_hex'])) {
+                        $s_hex = $db_s['shade_hex'];
+                    }
+                    $s_image_url = !empty($db_s['image_url']) ? $db_s['image_url'] : '';
+                    if ($s_var_id && function_exists('wc_get_product')) {
+                        $s_var_obj = wc_get_product($s_var_id);
+                        if ($s_var_obj) {
+                            $s_img_id = $s_var_obj->get_image_id();
+                            if ($s_img_id) {
+                                $s_image_url = wp_get_attachment_image_url($s_img_id, 'medium') ?: $s_image_url;
+                            }
+                        }
+                    }
+                    if ($s_image_url === '' && class_exists('Tvak_Shade_Sync')) {
+                        $s_image_url = Tvak_Shade_Sync::get_wc_variation_swatch_image_url($s_var_id, $product_id, $db_s['shade_name']);
+                    }
+                    if ($s_image_url === '') {
+                        $s_image_url = $image_url;
+                    }
 
                     $all_shades[] = [
                         'variation_id'    => $s_var_id,
                         'shade_name'      => $db_s['shade_name'],
-                        'hex_color'       => !empty($db_s['shade_hex']) ? $db_s['shade_hex'] : self::get_shade_hex($db_s['shade_name'], $product_id, $s_var_id),
+                        'hex_color'       => $s_hex,
                         'price'           => $s_price,
                         'price_formatted' => $s_price_fmt,
-                        'image_url'       => !empty($db_s['image_url']) ? $db_s['image_url'] : $image_url,
+                        'image_url'       => $s_image_url,
                         'is_in_stock'     => (bool) ($db_s['is_in_stock'] ?? 1),
                         'is_selected'     => ($idx === 0),
                     ];
